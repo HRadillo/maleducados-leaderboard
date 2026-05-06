@@ -202,7 +202,9 @@ select {
   position: relative;
   display: grid;
   gap: 22px;
-  padding: 24px;
+  min-height: 418px;
+  padding: 36px 230px 28px 32px;
+  align-content: start;
   border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: var(--radius);
   background: rgba(0, 0, 0, 0.74);
@@ -212,16 +214,17 @@ select {
 
 .winner-fire {
   position: absolute;
-  top: 22px;
-  right: 28px;
-  width: 138px;
-  height: 162px;
+  top: 50%;
+  right: 42px;
+  width: 116px;
+  height: 138px;
   opacity: 0.96;
   pointer-events: none;
   filter:
-    drop-shadow(0 0 10px rgba(255, 123, 42, 0.28))
-    drop-shadow(0 0 24px rgba(255, 70, 32, 0.18));
+    drop-shadow(0 0 15px rgba(255, 112, 34, 0.42))
+    drop-shadow(0 0 38px rgba(255, 59, 32, 0.28));
   animation: fire-glow 1.75s ease-in-out infinite alternate;
+  translate: 0 -50%;
 }
 
 .winner-fire svg {
@@ -241,8 +244,8 @@ select {
 }
 
 .flame-side {
-  fill: #ff7a22;
-  opacity: 0.78;
+  fill: #ff5a1f;
+  opacity: 0.72;
   animation: flame-side 0.88s ease-in-out infinite alternate;
 }
 
@@ -255,6 +258,7 @@ select {
   display: block;
   margin-top: 10px;
   font-size: 26px;
+  text-align: left;
 }
 
 .hero-panel p {
@@ -266,14 +270,14 @@ select {
 @keyframes fire-glow {
   0% {
     filter:
-      drop-shadow(0 0 8px rgba(255, 130, 40, 0.22))
-      drop-shadow(0 0 20px rgba(255, 70, 32, 0.14));
+      drop-shadow(0 0 13px rgba(255, 112, 34, 0.34))
+      drop-shadow(0 0 30px rgba(255, 59, 32, 0.22));
   }
 
   100% {
     filter:
-      drop-shadow(0 0 13px rgba(255, 158, 58, 0.36))
-      drop-shadow(0 0 34px rgba(255, 75, 28, 0.22));
+      drop-shadow(0 0 20px rgba(255, 125, 34, 0.56))
+      drop-shadow(0 0 54px rgba(255, 48, 32, 0.38));
   }
 }
 
@@ -315,7 +319,7 @@ select {
 
 .panel-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr;
   gap: 12px 18px;
 }
 
