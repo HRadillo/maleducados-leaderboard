@@ -58,6 +58,7 @@
     latestTableMeta: document.querySelector("#latestTableMeta"),
     latestTableWinner: document.querySelector("#latestTableWinner"),
     latestTableDeck: document.querySelector("#latestTableDeck"),
+    latestTableDeckColors: document.querySelector("#latestTableDeckColors"),
     latestTableVideo: document.querySelector("#latestTableVideo"),
     totalGames: document.querySelector("#totalGames"),
     guestCount: document.querySelector("#guestCount"),
@@ -131,10 +132,10 @@
   }
 
   function commanderLink(deck) {
-    const href = deck.moxfield || "#";
+    const href = deck.cardUrl || `https://scryfall.com/search?as=grid&order=name&q=!%22${encodeURIComponent(deck.commander || "Commander")}%22`;
     const image = deck.cardImage || "";
     const label = deck.commander || "Commander";
-    return `<a class="commander-link" href="${href}" target="_blank" rel="noreferrer" data-card-image="${image}" data-card-name="${label}" title="Ver deck en Moxfield">${label}</a>`;
+    return `<a class="commander-link" href="${href}" target="_blank" rel="noreferrer" data-card-image="${image}" data-card-url="${deck.cardUrl || ""}" data-card-name="${label}" title="Ver carta en Scryfall">${label}</a>`;
   }
 
   function imageFromScryfallPayload(payload) {
@@ -145,8 +146,8 @@
     return face?.image_uris?.large || face?.image_uris?.normal || "";
   }
 
-  async function getScryfallImage(cardName) {
-    if (!cardName) return "";
+  async function getScryfallCard(cardName) {
+    if (!cardName) return { image: "", url: "" };
     if (scryfallImageCache.has(cardName)) return scryfallImageCache.get(cardName);
 
     const url = new URL("https://api.scryfall.com/cards/named");
@@ -160,13 +161,27 @@
     }
 
     if (!response.ok) {
-      scryfallImageCache.set(cardName, "");
-      return "";
+      const empty = { image: "", url: "" };
+      scryfallImageCache.set(cardName, empty);
+      return empty;
     }
 
-    const image = imageFromScryfallPayload(await response.json());
-    scryfallImageCache.set(cardName, image);
-    return image;
+    const payload = await response.json();
+    const card = {
+      image: imageFromScryfallPayload(payload),
+      url: payload.scryfall_uri || ""
+    };
+    scryfallImageCache.set(cardName, card);
+    return card;
+  }
+
+  function findDeckByCommander(commander) {
+    const normalized = commander?.trim().toLowerCase();
+    if (!normalized) return null;
+
+    return data.players
+      .flatMap((player) => player.decks)
+      .find((deck) => deck.commander?.trim().toLowerCase() === normalized);
   }
 
   function score(player) {
@@ -270,8 +285,15 @@
     elements.seasonLabel.textContent = `${data.season} | Actualizado ${data.lastUpdated}`;
     elements.latestTableTitle.textContent = latestTable.title || "Última mesa";
     elements.latestTableMeta.textContent = latestTable.date || "";
-    elements.latestTableWinner.textContent = latestTable.winner || "-";
-    elements.latestTableDeck.textContent = latestTable.deck || "-";
+    elements.latestTableWinner.innerHTML = `${latestTable.winner || "-"} <span class="winner-flame" aria-hidden="true"></span>`;
+    const latestDeck = findDeckByCommander(latestTable.deck) || {
+      commander: latestTable.deck || "-",
+      cardImage: latestTable.cardImage || "",
+      cardUrl: latestTable.cardUrl || "",
+      colors: latestTable.colors || []
+    };
+    elements.latestTableDeck.innerHTML = commanderLink(latestDeck);
+    elements.latestTableDeckColors.innerHTML = latestDeck.colors?.length ? manaPips(latestDeck.colors) : "";
     elements.latestTableVideo.href = latestTable.videoUrl || data.socials[0].url;
     elements.totalGames.textContent = totalGames;
     elements.guestCount.textContent = guestCount;
@@ -315,7 +337,9 @@
 
     elements.podium.innerHTML = top
       .map(
-        (player, index) => `
+        (player, index) => {
+          const mainDeck = player.decks[0];
+          return `
           <article class="podium-card">
             <span class="podium-rank">${index + 1}</span>
             <div class="player-mini">
@@ -325,6 +349,13 @@
                 <p>${player.handle} | ${player.role}</p>
               </div>
             </div>
+            ${mainDeck ? `
+              <div class="podium-commander">
+                <span>Comandante</span>
+                <strong>${commanderLink(mainDeck)}</strong>
+                ${manaPips(mainDeck.colors)}
+              </div>
+            ` : ""}
             <div class="podium-stats">
               <div class="podium-stat">
                 <span>Wins</span>
@@ -341,7 +372,8 @@
             </div>
             <a class="profile-link" href="#" data-player-id="${player.id}">Ver perfil</a>
           </article>
-        `
+        `;
+        }
       )
       .join("");
   }
@@ -530,7 +562,10 @@
     showCardPreview('<div class="card-preview-loading">Cargando carta...</div>', event);
 
     if (!link.dataset.cardImage) {
-      link.dataset.cardImage = await getScryfallImage(link.dataset.cardName);
+      const card = await getScryfallCard(link.dataset.cardName);
+      link.dataset.cardImage = card.image;
+      link.dataset.cardUrl = card.url;
+      if (card.url) link.href = card.url;
     }
 
     if (!link.matches(":hover")) return;

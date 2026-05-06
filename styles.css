@@ -221,6 +221,46 @@ select {
   font-size: 13px;
 }
 
+.winner-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.winner-flame {
+  position: relative;
+  display: inline-block;
+  width: 16px;
+  height: 20px;
+  border-radius: 12px 12px 12px 3px;
+  background: linear-gradient(180deg, #ffd36a, #ff6d38 58%, #ff2d12);
+  transform: rotate(45deg);
+  animation: flame-flicker 1.1s ease-in-out infinite alternate;
+  box-shadow: 0 0 18px rgba(255, 109, 56, 0.42);
+}
+
+.winner-flame::after {
+  position: absolute;
+  inset: 6px 5px 4px 5px;
+  content: "";
+  border-radius: 10px 10px 10px 2px;
+  background: #ffe9a8;
+}
+
+@keyframes flame-flicker {
+  0% {
+    transform: rotate(45deg) scale(0.92);
+  }
+
+  100% {
+    transform: rotate(40deg) scale(1.04);
+  }
+}
+
+.latest-colors {
+  margin-top: -10px;
+}
+
 .panel-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -441,6 +481,21 @@ h2 {
   display: block;
   margin-top: 5px;
   font-size: 20px;
+}
+
+.podium-commander {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.podium-commander span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
 }
 
 .board {

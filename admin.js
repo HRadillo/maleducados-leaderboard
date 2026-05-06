@@ -95,15 +95,21 @@ function colorsToText(colors) {
   return allowedColors.filter((color) => colors?.includes(color)).join("");
 }
 
-function scryfallImageFromPayload(payload) {
-  if (payload.image_uris?.large) return payload.image_uris.large;
-  if (payload.image_uris?.normal) return payload.image_uris.normal;
+function scryfallCardFromPayload(payload) {
+  let image = payload.image_uris?.large || payload.image_uris?.normal || "";
 
-  const face = payload.card_faces?.find((cardFace) => cardFace.image_uris?.large || cardFace.image_uris?.normal);
-  return face?.image_uris?.large || face?.image_uris?.normal || "";
+  if (!image) {
+    const face = payload.card_faces?.find((cardFace) => cardFace.image_uris?.large || cardFace.image_uris?.normal);
+    image = face?.image_uris?.large || face?.image_uris?.normal || "";
+  }
+
+  return {
+    image,
+    url: payload.scryfall_uri || ""
+  };
 }
 
-async function fetchCommanderImage(commander) {
+async function fetchCommanderCard(commander) {
   const url = new URL("https://api.scryfall.com/cards/named");
   url.searchParams.set("exact", commander);
 
@@ -114,9 +120,9 @@ async function fetchCommanderImage(commander) {
     response = await fetch(url);
   }
 
-  if (!response.ok) return "";
+  if (!response.ok) return { image: "", url: "" };
 
-  return scryfallImageFromPayload(await response.json());
+  return scryfallCardFromPayload(await response.json());
 }
 
 function playerById(data, playerId) {
@@ -501,19 +507,25 @@ nodes.deckForm.addEventListener("submit", async (event) => {
     losses: Number(fields.losses.value || 0),
     moxfield: fields.moxfield.value.trim() || "https://moxfield.com/users/LosMaleducadosDelMagic",
     videoUrl: fields.videoUrl.value.trim() || data.socials[0].url,
-    cardImage: ""
+    cardImage: "",
+    cardUrl: ""
   };
 
   const editingSamePlayer = fields.playerId.value === player.id && fields.deckIndex.value !== "";
   if (editingSamePlayer) {
     payload.cardImage = player.decks[Number(fields.deckIndex.value)]?.cardImage || "";
-    if (!payload.cardImage || player.decks[Number(fields.deckIndex.value)]?.commander !== payload.commander) {
-      payload.cardImage = await fetchCommanderImage(payload.commander);
+    payload.cardUrl = player.decks[Number(fields.deckIndex.value)]?.cardUrl || "";
+    if (!payload.cardImage || !payload.cardUrl || player.decks[Number(fields.deckIndex.value)]?.commander !== payload.commander) {
+      const card = await fetchCommanderCard(payload.commander);
+      payload.cardImage = card.image;
+      payload.cardUrl = card.url;
     }
     player.decks[Number(fields.deckIndex.value)] = payload;
     selectedDeckIndex = fields.deckIndex.value;
   } else {
-    payload.cardImage = await fetchCommanderImage(payload.commander);
+    const card = await fetchCommanderCard(payload.commander);
+    payload.cardImage = card.image;
+    payload.cardUrl = card.url;
     if (fields.playerId.value && fields.deckIndex.value !== "") {
       const oldPlayer = playerById(data, fields.playerId.value);
       oldPlayer?.decks.splice(Number(fields.deckIndex.value), 1);
