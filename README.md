@@ -31,6 +31,13 @@ Canal:
 https://www.youtube.com/@losmaleducadosdelmagic
 ```
 
+## Instalar Como App
+
+La página puede instalarse en el celular como app web:
+
+- En iPhone: abrir el sitio en Safari, tocar Compartir y elegir "Agregar a pantalla de inicio".
+- En Android: abrir el sitio en Chrome, tocar el menú de tres puntos y elegir "Instalar app" o "Agregar a pantalla principal".
+
 ## Modo Editor
 
 El sitio tiene un modo editor para mantener actualizado el historial sin tocar código.

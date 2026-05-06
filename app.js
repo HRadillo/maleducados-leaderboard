@@ -397,7 +397,7 @@
         const color = rateColor(rate);
         return `
           <tr>
-            <td><span class="rank-pill">${index + 1}</span></td>
+            <td data-label="Rank"><span class="rank-pill">${index + 1}</span></td>
             <td>
               <div class="player-cell">
                 <span class="avatar alt-${index % 3}">${initials(player.name)}</span>
@@ -407,18 +407,18 @@
                 </span>
               </div>
             </td>
-            <td><strong>${player.wins}</strong></td>
-            <td><strong>${player.losses}</strong></td>
-            <td>
+            <td data-label="Wins"><strong>${player.wins}</strong></td>
+            <td data-label="Losses"><strong>${player.losses}</strong></td>
+            <td data-label="Win rate">
               <strong>${rate}%</strong>
               <div class="rate-bar" aria-hidden="true"><span style="width: ${rate}%; background: ${color}"></span></div>
             </td>
-            <td>${player.decks.length}</td>
-            <td>
+            <td data-label="Decks">${player.decks.length}</td>
+            <td data-label="Comandante">
               <span class="cell-title">${commanderLink(mainDeck)}</span>
               <span class="cell-sub">${manaPips(mainDeck.colors)}</span>
             </td>
-            <td><a class="deck-link compact-link" href="${mainDeck.videoUrl || data.socials[0].url}" target="_blank" rel="noreferrer">Watch Video</a></td>
+            <td data-label="Video"><a class="deck-link compact-link" href="${mainDeck.videoUrl || data.socials[0].url}" target="_blank" rel="noreferrer">Watch Video</a></td>
           </tr>
         `;
       })
