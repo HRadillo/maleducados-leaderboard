@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Leaderboard de invitados, decks y resultados de Los Maleducados del Magic.">
+    <title>Los Maleducados del Magic | Leaderboard</title>
+    <link rel="icon" href="assets/brand/isotipo-transparent.png" type="image/png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="rail" aria-label="Navegacion principal">
+        <a class="brand-lockup" href="#top" aria-label="Los Maleducados del Magic">
+          <img src="assets/brand/isotipo-transparent.png" alt="" class="brand-mark">
+        </a>
+        <nav class="rail-nav">
+          <a class="rail-link is-active" href="#leaderboard" title="Podium" aria-label="Podium">
+            <svg aria-hidden="true" viewBox="0 0 24 24">
+              <path d="M8 4h8v3a4 4 0 0 1-8 0V4Z"></path>
+              <path d="M8 6H5a2 2 0 0 0 2 4"></path>
+              <path d="M16 6h3a2 2 0 0 1-2 4"></path>
+              <path d="M12 11v4"></path>
+              <path d="M9 20h6"></path>
+              <path d="M10 15h4v5h-4z"></path>
+            </svg>
+          </a>
+          <a class="rail-link" href="#registro" title="Registro" aria-label="Registro">
+            <svg aria-hidden="true" viewBox="0 0 24 24">
+              <path d="M4 19V5"></path>
+              <path d="M4 19h16"></path>
+              <path d="m7 15 3-3 3 2 5-7"></path>
+            </svg>
+          </a>
+          <a class="rail-link" href="#decks" title="Decks" aria-label="Decks">
+            <svg aria-hidden="true" viewBox="0 0 24 24">
+              <rect x="7" y="3" width="10" height="18" rx="2"></rect>
+              <path d="M10 7h4"></path>
+              <path d="M10 17h4"></path>
+            </svg>
+          </a>
+        </nav>
+      </aside>
+
+      <main id="top" class="page">
+        <header class="hero">
+          <div class="hero-copy">
+            <div class="eyebrow">
+              <span class="live-dot"></span>
+              <span id="seasonLabel">Temporada activa</span>
+            </div>
+            <h1>Los Maleducados del Magic</h1>
+            <p>Leaderboard oficial de invitados, victorias, derrotas y decks jugados en las mesas del canal.</p>
+            <div class="socials hero-socials" id="socialLinks" aria-label="Redes sociales"></div>
+          </div>
+          <div class="hero-panel" aria-label="Última mesa del canal">
+            <div>
+              <span class="panel-kicker">Última Mesa</span>
+              <strong id="latestTableTitle">-</strong>
+              <p id="latestTableMeta">-</p>
+            </div>
+            <div class="panel-grid">
+              <span>Ganador</span>
+              <strong id="latestTableWinner">-</strong>
+              <span>Deck</span>
+              <strong id="latestTableDeck">-</strong>
+            </div>
+            <a id="latestTableVideo" class="deck-link" href="#" target="_blank" rel="noreferrer">Watch Video</a>
+          </div>
+        </header>
+
+        <section class="metric-row" aria-label="Metricas generales">
+          <article class="metric">
+            <span>Invitados diferentes</span>
+            <strong id="guestCount">0</strong>
+          </article>
+          <article class="metric">
+            <span>Partidas jugadas</span>
+            <strong id="totalGames">0</strong>
+          </article>
+          <article class="metric">
+            <span>Suscriptores</span>
+            <strong id="subscriberCount">-</strong>
+            <a id="subscribeLink" href="https://www.youtube.com/@losmaleducadosdelmagic?sub_confirmation=1" target="_blank" rel="noreferrer">Suscribirse</a>
+          </article>
+        </section>
+
+        <section id="leaderboard" class="leaderboard-section">
+          <div class="section-head">
+            <div>
+              <span class="section-kicker">Top 3</span>
+              <h2>Podium maleducado</h2>
+            </div>
+          </div>
+          <div id="podium" class="podium" aria-live="polite"></div>
+        </section>
+
+        <section id="registro" class="board">
+          <div class="toolbar" aria-label="Controles del leaderboard">
+            <label class="search">
+              <span>Buscar</span>
+              <input id="searchInput" type="search" placeholder="Nombre o comandante">
+            </label>
+            <label>
+              <span>Rol</span>
+              <select id="roleFilter">
+                <option value="all">Todos</option>
+                <option value="Host">Hosts</option>
+                <option value="Invitada">Invitadas</option>
+                <option value="Invitado">Invitados</option>
+              </select>
+            </label>
+            <label>
+              <span>Color</span>
+              <select id="colorFilter"></select>
+            </label>
+            <label>
+              <span>Orden</span>
+              <select id="sortSelect">
+                <option value="score">Ranking</option>
+                <option value="wins">Victorias</option>
+                <option value="winrate">Win rate</option>
+                <option value="appearances">Apariciones</option>
+                <option value="decks">Decks</option>
+              </select>
+            </label>
+          </div>
+
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th scope="col">Rank</th>
+                  <th scope="col">Jugador</th>
+                  <th scope="col">Wins</th>
+                  <th scope="col">Losses</th>
+                  <th scope="col">Win rate</th>
+                  <th scope="col">Decks</th>
+                  <th scope="col">Comandante</th>
+                  <th scope="col">Video</th>
+                </tr>
+              </thead>
+              <tbody id="leaderboardRows"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section id="decks" class="deck-section">
+          <div class="section-head">
+            <div>
+              <span class="section-kicker">Archivo</span>
+              <h2>Decks jugados</h2>
+            </div>
+          </div>
+          <div id="deckGrid" class="deck-grid"></div>
+        </section>
+
+        <section id="admin" class="admin-section" aria-label="Administracion de datos">
+          <div class="admin-locked" id="adminLocked">
+            <div>
+              <span class="section-kicker">Admin</span>
+              <h2>Modo editor</h2>
+              <p>Inicia sesión con la cuenta autorizada para agregar invitados, decks y links de partidas.</p>
+            </div>
+            <button id="adminLogin" class="admin-button" type="button">Entrar con Google</button>
+          </div>
+
+          <div class="admin-panel" id="adminPanel" hidden>
+            <div class="section-head">
+              <div>
+                <span class="section-kicker" id="adminStatus">Admin</span>
+                <h2>Editor de historial</h2>
+              </div>
+              <button id="adminLogout" class="admin-button secondary" type="button">Salir</button>
+            </div>
+
+            <form id="quickEntryForm" class="quick-entry">
+              <label>
+                <span>Jugador</span>
+                <input name="playerName" required placeholder="Nombre del invitado o host">
+              </label>
+              <label>
+                <span>Handle</span>
+                <input name="handle" placeholder="@usuario">
+              </label>
+              <label>
+                <span>Rol</span>
+                <select name="role">
+                  <option value="Invitado">Invitado</option>
+                  <option value="Invitada">Invitada</option>
+                  <option value="Host">Host</option>
+                </select>
+              </label>
+              <label>
+                <span>Comandante</span>
+                <input name="commander" required placeholder="Commander">
+              </label>
+              <label>
+                <span>Arquetipo</span>
+                <input name="archetype" placeholder="Ej. Esper Control">
+              </label>
+              <label>
+                <span>Colores</span>
+                <input name="colors" required placeholder="WUB, RG, WUBRG">
+              </label>
+              <label>
+                <span>Wins deck</span>
+                <input name="wins" type="number" min="0" value="0">
+              </label>
+              <label>
+                <span>Losses deck</span>
+                <input name="losses" type="number" min="0" value="0">
+              </label>
+              <label>
+                <span>Moxfield</span>
+                <input name="moxfield" type="url" placeholder="https://moxfield.com/...">
+              </label>
+              <label>
+                <span>YouTube</span>
+                <input name="videoUrl" type="url" placeholder="https://youtube.com/...">
+              </label>
+              <button class="admin-button" type="submit">Agregar / actualizar deck</button>
+            </form>
+
+            <label class="json-editor-label">
+              <span>Datos completos</span>
+              <textarea id="adminJson" spellcheck="false"></textarea>
+            </label>
+            <div class="admin-actions">
+              <button id="loadJson" class="admin-button secondary" type="button">Recargar JSON</button>
+              <button id="saveJson" class="admin-button" type="button">Guardar cambios</button>
+            </div>
+          </div>
+          <p id="adminMessage" class="admin-message" role="status"></p>
+        </section>
+      </main>
+    </div>
+
+    <dialog id="playerDialog" class="player-dialog">
+      <button id="closeDialog" class="icon-button" type="button" aria-label="Cerrar">x</button>
+      <div id="dialogContent"></div>
+    </dialog>
+
+    <script src="data.js"></script>
+    <script src="app.js"></script>
+    <script src="firebase-config.js"></script>
+    <script type="module" src="admin.js"></script>
+  </body>
+</html>
