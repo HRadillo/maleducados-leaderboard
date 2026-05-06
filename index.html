@@ -86,6 +86,11 @@
             <strong id="subscriberCount">-</strong>
             <a id="subscribeLink" href="https://www.youtube.com/@losmaleducadosdelmagic?sub_confirmation=1" target="_blank" rel="noreferrer">Suscribirse</a>
           </article>
+          <article class="metric rivalry-metric">
+            <span>Hosts vs invitados</span>
+            <strong id="hostGuestScore">0-0</strong>
+            <small id="hostGuestRate">Hosts 0% | Invitados 0%</small>
+          </article>
         </section>
 
         <section id="leaderboard" class="leaderboard-section">
@@ -177,62 +182,114 @@
               <button id="adminLogout" class="admin-button secondary" type="button">Salir</button>
             </div>
 
-            <form id="quickEntryForm" class="quick-entry">
-              <label>
-                <span>Jugador</span>
-                <input name="playerName" required placeholder="Nombre del invitado o host">
-              </label>
-              <label>
-                <span>Handle</span>
-                <input name="handle" placeholder="@usuario">
-              </label>
-              <label>
-                <span>Rol</span>
-                <select name="role">
-                  <option value="Invitado">Invitado</option>
-                  <option value="Invitada">Invitada</option>
-                  <option value="Host">Host</option>
-                </select>
-              </label>
-              <label>
-                <span>Comandante</span>
-                <input name="commander" required placeholder="Commander">
-              </label>
-              <label>
-                <span>Arquetipo</span>
-                <input name="archetype" placeholder="Ej. Esper Control">
-              </label>
-              <label>
-                <span>Colores</span>
-                <input name="colors" required placeholder="WUB, RG, WUBRG">
-              </label>
-              <label>
-                <span>Wins deck</span>
-                <input name="wins" type="number" min="0" value="0">
-              </label>
-              <label>
-                <span>Losses deck</span>
-                <input name="losses" type="number" min="0" value="0">
-              </label>
-              <label>
-                <span>Moxfield</span>
-                <input name="moxfield" type="url" placeholder="https://moxfield.com/...">
-              </label>
-              <label>
-                <span>YouTube</span>
-                <input name="videoUrl" type="url" placeholder="https://youtube.com/...">
-              </label>
-              <button class="admin-button" type="submit">Agregar / actualizar deck</button>
-            </form>
+            <div class="admin-grid">
+              <form id="siteSettingsForm" class="editor-card">
+                <div class="editor-card-head">
+                  <div>
+                    <h3>Resumen del canal</h3>
+                    <p>Datos superiores de temporada, última mesa y suscriptores.</p>
+                  </div>
+                  <button class="admin-button" type="submit">Guardar resumen</button>
+                </div>
+                <div class="editor-fields two-col">
+                  <label><span>Temporada</span><input name="season" placeholder="Temporada 1"></label>
+                  <label><span>Actualizado</span><input name="lastUpdated" type="date"></label>
+                  <label><span>Última mesa</span><input name="latestTitle" placeholder="Nombre de la partida"></label>
+                  <label><span>Fecha / etiqueta</span><input name="latestDate" placeholder="Último estreno"></label>
+                  <label><span>Ganador</span><input name="latestWinner" placeholder="Nombre"></label>
+                  <label><span>Deck ganador</span><input name="latestDeck" placeholder="Comandante"></label>
+                  <label class="wide"><span>Video de última mesa</span><input name="latestVideo" type="url" placeholder="https://youtube.com/..."></label>
+                  <label class="wide"><span>Suscriptores manuales</span><input name="subscribers" placeholder="N/D o 12345"></label>
+                </div>
+              </form>
 
-            <label class="json-editor-label">
-              <span>Datos completos</span>
-              <textarea id="adminJson" spellcheck="false"></textarea>
-            </label>
-            <div class="admin-actions">
-              <button id="loadJson" class="admin-button secondary" type="button">Recargar JSON</button>
-              <button id="saveJson" class="admin-button" type="button">Guardar cambios</button>
+              <section class="editor-card">
+                <div class="editor-card-head">
+                  <div>
+                    <h3>Jugadores e invitados</h3>
+                    <p>Agrega, edita o elimina hosts e invitados.</p>
+                  </div>
+                  <button id="newPlayer" class="admin-button secondary" type="button">Nuevo jugador</button>
+                </div>
+                <div id="playerList" class="admin-list"></div>
+              </section>
+
+              <form id="playerForm" class="editor-card">
+                <div class="editor-card-head">
+                  <div>
+                    <h3 id="playerFormTitle">Nuevo jugador</h3>
+                    <p>El record se calcula automáticamente con sus decks.</p>
+                  </div>
+                  <div class="editor-actions-inline">
+                    <button id="deletePlayer" class="admin-button danger" type="button">Eliminar</button>
+                    <button class="admin-button" type="submit">Guardar jugador</button>
+                  </div>
+                </div>
+                <input name="id" type="hidden">
+                <div class="editor-fields two-col">
+                  <label><span>Nombre</span><input name="name" required placeholder="Nombre completo"></label>
+                  <label><span>Handle</span><input name="handle" placeholder="@usuario"></label>
+                  <label>
+                    <span>Rol</span>
+                    <select name="role">
+                      <option value="Invitado">Invitado</option>
+                      <option value="Invitada">Invitada</option>
+                      <option value="Host">Host</option>
+                    </select>
+                  </label>
+                  <label><span>Última aparición</span><input name="latestAppearance" placeholder="Nombre de la mesa"></label>
+                  <label class="wide"><span>Descripción / estilo</span><input name="signature" placeholder="Tokens, política, combos..."></label>
+                </div>
+              </form>
+
+              <section class="editor-card">
+                <div class="editor-card-head">
+                  <div>
+                    <h3>Decks jugados</h3>
+                    <p>Cada badge del sitio usa el formato wins-losses de aquí.</p>
+                  </div>
+                  <button id="newDeck" class="admin-button secondary" type="button">Nuevo deck</button>
+                </div>
+                <div id="deckList" class="admin-list deck-admin-list"></div>
+              </section>
+
+              <form id="deckForm" class="editor-card">
+                <div class="editor-card-head">
+                  <div>
+                    <h3 id="deckFormTitle">Nuevo deck</h3>
+                    <p>Links, colores y resultados del deck.</p>
+                  </div>
+                  <div class="editor-actions-inline">
+                    <button id="deleteDeck" class="admin-button danger" type="button">Eliminar</button>
+                    <button class="admin-button" type="submit">Guardar deck</button>
+                  </div>
+                </div>
+                <input name="playerId" type="hidden">
+                <input name="deckIndex" type="hidden">
+                <div class="editor-fields two-col">
+                  <label><span>Jugador</span><select name="playerSelect" required></select></label>
+                  <label><span>Comandante</span><input name="commander" required placeholder="Commander"></label>
+                  <label><span>Arquetipo</span><input name="archetype" placeholder="Ej. Esper Control"></label>
+                  <label><span>Colores</span><input name="colors" required placeholder="WUB, RG, WUBRG"></label>
+                  <label><span>Wins</span><input name="wins" type="number" min="0" value="0"></label>
+                  <label><span>Losses</span><input name="losses" type="number" min="0" value="0"></label>
+                  <label class="wide"><span>Moxfield</span><input name="moxfield" type="url" placeholder="https://moxfield.com/..."></label>
+                  <label class="wide"><span>YouTube</span><input name="videoUrl" type="url" placeholder="https://youtube.com/..."></label>
+                </div>
+              </form>
             </div>
+
+            <details class="advanced-json">
+              <summary>Avanzado: editar datos completos como JSON</summary>
+              <label class="json-editor-label">
+                <span>Datos completos</span>
+                <textarea id="adminJson" spellcheck="false"></textarea>
+              </label>
+              <div class="admin-actions">
+                <button id="loadJson" class="admin-button secondary" type="button">Recargar JSON</button>
+                <button id="saveJson" class="admin-button" type="button">Guardar JSON</button>
+              </div>
+            </details>
           </div>
           <p id="adminMessage" class="admin-message" role="status"></p>
         </section>
@@ -243,6 +300,7 @@
       <button id="closeDialog" class="icon-button" type="button" aria-label="Cerrar">x</button>
       <div id="dialogContent"></div>
     </dialog>
+    <div id="cardPreview" class="card-preview" aria-hidden="true"></div>
 
     <script src="data.js"></script>
     <script src="app.js"></script>
