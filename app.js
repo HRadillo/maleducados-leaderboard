@@ -134,7 +134,7 @@
     const href = deck.moxfield || "#";
     const image = deck.cardImage || "";
     const label = deck.commander || "Commander";
-    return `<a class="commander-link" href="${href}" target="_blank" rel="noreferrer" data-card-image="${image}" data-card-name="${label}">${label}</a>`;
+    return `<a class="commander-link" href="${href}" target="_blank" rel="noreferrer" data-card-image="${image}" data-card-name="${label}" title="Ver deck en Moxfield">${label}</a>`;
   }
 
   function imageFromScryfallPayload(payload) {
@@ -501,38 +501,58 @@
     showPlayer(profileLink.dataset.playerId);
   });
 
-  document.addEventListener("mouseover", async (event) => {
-    const link = event.target.closest("[data-card-image]");
-    if (!link) return;
-
-    if (!link.dataset.cardImage) {
-      link.dataset.cardImage = await getScryfallImage(link.dataset.cardName);
-    }
-
-    if (!link.dataset.cardImage) return;
-
-    elements.cardPreview.innerHTML = `<img src="${link.dataset.cardImage}" alt="${link.dataset.cardName}">`;
-    elements.cardPreview.hidden = false;
-    elements.cardPreview.setAttribute("aria-hidden", "false");
-  });
-
-  document.addEventListener("mousemove", (event) => {
-    if (elements.cardPreview.hidden) return;
-
+  function moveCardPreview(event) {
     const offset = 18;
     const previewWidth = 260;
     const previewHeight = 364;
     const left = Math.min(event.clientX + offset, window.innerWidth - previewWidth - offset);
     const top = Math.min(event.clientY + offset, window.innerHeight - previewHeight - offset);
     elements.cardPreview.style.transform = `translate(${left}px, ${top}px)`;
+  }
+
+  function showCardPreview(content, event) {
+    elements.cardPreview.innerHTML = content;
+    elements.cardPreview.hidden = false;
+    elements.cardPreview.setAttribute("aria-hidden", "false");
+    moveCardPreview(event);
+  }
+
+  function hideCardPreview() {
+    elements.cardPreview.hidden = true;
+    elements.cardPreview.setAttribute("aria-hidden", "true");
+    elements.cardPreview.innerHTML = "";
+  }
+
+  document.addEventListener("mouseover", async (event) => {
+    const link = event.target.closest("[data-card-image]");
+    if (!link) return;
+
+    showCardPreview('<div class="card-preview-loading">Cargando carta...</div>', event);
+
+    if (!link.dataset.cardImage) {
+      link.dataset.cardImage = await getScryfallImage(link.dataset.cardName);
+    }
+
+    if (!link.matches(":hover")) return;
+
+    if (!link.dataset.cardImage) {
+      showCardPreview('<div class="card-preview-loading">Sin imagen en Scryfall</div>', event);
+      return;
+    }
+
+    showCardPreview(`<img src="${link.dataset.cardImage}" alt="${link.dataset.cardName}">`, event);
+  });
+
+  document.addEventListener("mousemove", (event) => {
+    if (elements.cardPreview.hidden) return;
+    moveCardPreview(event);
   });
 
   document.addEventListener("mouseout", (event) => {
     const link = event.target.closest("[data-card-image]");
     if (!link) return;
 
-    elements.cardPreview.hidden = true;
-    elements.cardPreview.setAttribute("aria-hidden", "true");
+    hideCardPreview();
   });
 
   elements.closeDialog.addEventListener("click", () => {

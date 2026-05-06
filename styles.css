@@ -709,6 +709,17 @@ tbody tr:hover {
   border-radius: 14px;
 }
 
+.card-preview-loading {
+  min-width: 190px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  color: var(--soft);
+  background: rgba(0, 0, 0, 0.9);
+  padding: 12px 14px;
+  font-size: 13px;
+  font-weight: 800;
+}
+
 .icon-button {
   position: absolute;
   top: 12px;
