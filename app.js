@@ -1,6 +1,7 @@
 (function () {
   let data = window.MALEDucadosData;
   let subscriberLoadStarted = false;
+  const scryfallImageCache = new Map();
   const state = {
     query: "",
     role: "all",
@@ -62,6 +63,8 @@
     guestCount: document.querySelector("#guestCount"),
     subscriberCount: document.querySelector("#subscriberCount"),
     subscribeLink: document.querySelector("#subscribeLink"),
+    hostGuestScore: document.querySelector("#hostGuestScore"),
+    hostGuestRate: document.querySelector("#hostGuestRate"),
     socialLinks: document.querySelector("#socialLinks"),
     podium: document.querySelector("#podium"),
     rows: document.querySelector("#leaderboardRows"),
@@ -72,7 +75,8 @@
     sort: document.querySelector("#sortSelect"),
     dialog: document.querySelector("#playerDialog"),
     dialogContent: document.querySelector("#dialogContent"),
-    closeDialog: document.querySelector("#closeDialog")
+    closeDialog: document.querySelector("#closeDialog"),
+    cardPreview: document.querySelector("#cardPreview")
   };
 
   function updateActiveNav() {
@@ -124,6 +128,45 @@
   function rateColor(rate) {
     const hue = Math.round((rate / 100) * 138);
     return `hsl(${hue}, 72%, 64%)`;
+  }
+
+  function commanderLink(deck) {
+    const href = deck.moxfield || "#";
+    const image = deck.cardImage || "";
+    const label = deck.commander || "Commander";
+    return `<a class="commander-link" href="${href}" target="_blank" rel="noreferrer" data-card-image="${image}" data-card-name="${label}">${label}</a>`;
+  }
+
+  function imageFromScryfallPayload(payload) {
+    if (payload.image_uris?.large) return payload.image_uris.large;
+    if (payload.image_uris?.normal) return payload.image_uris.normal;
+
+    const face = payload.card_faces?.find((cardFace) => cardFace.image_uris?.large || cardFace.image_uris?.normal);
+    return face?.image_uris?.large || face?.image_uris?.normal || "";
+  }
+
+  async function getScryfallImage(cardName) {
+    if (!cardName) return "";
+    if (scryfallImageCache.has(cardName)) return scryfallImageCache.get(cardName);
+
+    const url = new URL("https://api.scryfall.com/cards/named");
+    url.searchParams.set("exact", cardName);
+
+    let response = await fetch(url);
+    if (!response.ok) {
+      url.searchParams.delete("exact");
+      url.searchParams.set("fuzzy", cardName);
+      response = await fetch(url);
+    }
+
+    if (!response.ok) {
+      scryfallImageCache.set(cardName, "");
+      return "";
+    }
+
+    const image = imageFromScryfallPayload(await response.json());
+    scryfallImageCache.set(cardName, image);
+    return image;
   }
 
   function score(player) {
@@ -216,6 +259,11 @@
     const players = data.players;
     const totalGames = players.reduce((sum, player) => sum + player.wins, 0);
     const guestCount = players.filter((player) => player.role !== "Host").length;
+    const hostWins = players.filter((player) => player.role === "Host").reduce((sum, player) => sum + player.wins, 0);
+    const guestWins = players.filter((player) => player.role !== "Host").reduce((sum, player) => sum + player.wins, 0);
+    const rivalryTotal = hostWins + guestWins;
+    const hostRate = rivalryTotal ? Math.round((hostWins / rivalryTotal) * 100) : 0;
+    const guestRate = rivalryTotal ? 100 - hostRate : 0;
     const latestTable = data.latestTable || {};
     const channelStats = data.channelStats || {};
 
@@ -229,6 +277,8 @@
     elements.guestCount.textContent = guestCount;
     elements.subscriberCount.textContent = formatNumber(channelStats.subscribers);
     elements.subscribeLink.href = channelStats.subscribeUrl || data.socials[0].url;
+    elements.hostGuestScore.textContent = `${hostWins}-${guestWins}`;
+    elements.hostGuestRate.textContent = `Hosts ${hostRate}% | Invitados ${guestRate}%`;
 
     elements.socialLinks.innerHTML = data.socials
       .map((social) => `<a href="${social.url}" target="_blank" rel="noreferrer">${social.label}</a>`)
@@ -252,9 +302,10 @@
       .then((response) => (response.ok ? response.json() : Promise.reject(response)))
       .then((payload) => {
         const count = payload.items?.[0]?.statistics?.subscriberCount;
-        if (count) elements.subscriberCount.textContent = formatNumber(Number(count));
+        elements.subscriberCount.textContent = count ? formatNumber(Number(count)) : "Oculto";
       })
-      .catch(() => {
+      .catch((error) => {
+        console.warn("No se pudo cargar el conteo de suscriptores.", error);
         elements.subscriberCount.textContent = formatNumber(channelStats.subscribers);
       });
   }
@@ -332,7 +383,7 @@
             </td>
             <td>${player.decks.length}</td>
             <td>
-              <span class="cell-title">${mainDeck.commander}</span>
+              <span class="cell-title">${commanderLink(mainDeck)}</span>
               <span class="cell-sub">${manaPips(mainDeck.colors)}</span>
             </td>
             <td><a class="deck-link compact-link" href="${mainDeck.videoUrl || data.socials[0].url}" target="_blank" rel="noreferrer">Watch Video</a></td>
@@ -356,7 +407,7 @@
           <article class="deck-card">
             <div class="deck-topline">
               <div>
-                <h3>${deck.commander}</h3>
+                <h3>${commanderLink(deck)}</h3>
                 <p>${deck.player} | ${deck.archetype}</p>
               </div>
               <span class="tag" style="background: ${rateColor(deckWinRate(deck))}" title="Wins-Losses">${deck.wins}-${deck.losses}</span>
@@ -397,7 +448,7 @@
             (deck) => `
               <article class="dialog-deck">
                 <div>
-                  <h3>${deck.commander}</h3>
+                  <h3>${commanderLink(deck)}</h3>
                   <p class="empty-state">${deck.archetype} | ${deck.wins}-${deck.losses}</p>
                   ${manaPips(deck.colors)}
                 </div>
@@ -450,6 +501,40 @@
     showPlayer(profileLink.dataset.playerId);
   });
 
+  document.addEventListener("mouseover", async (event) => {
+    const link = event.target.closest("[data-card-image]");
+    if (!link) return;
+
+    if (!link.dataset.cardImage) {
+      link.dataset.cardImage = await getScryfallImage(link.dataset.cardName);
+    }
+
+    if (!link.dataset.cardImage) return;
+
+    elements.cardPreview.innerHTML = `<img src="${link.dataset.cardImage}" alt="${link.dataset.cardName}">`;
+    elements.cardPreview.hidden = false;
+    elements.cardPreview.setAttribute("aria-hidden", "false");
+  });
+
+  document.addEventListener("mousemove", (event) => {
+    if (elements.cardPreview.hidden) return;
+
+    const offset = 18;
+    const previewWidth = 260;
+    const previewHeight = 364;
+    const left = Math.min(event.clientX + offset, window.innerWidth - previewWidth - offset);
+    const top = Math.min(event.clientY + offset, window.innerHeight - previewHeight - offset);
+    elements.cardPreview.style.transform = `translate(${left}px, ${top}px)`;
+  });
+
+  document.addEventListener("mouseout", (event) => {
+    const link = event.target.closest("[data-card-image]");
+    if (!link) return;
+
+    elements.cardPreview.hidden = true;
+    elements.cardPreview.setAttribute("aria-hidden", "true");
+  });
+
   elements.closeDialog.addEventListener("click", () => {
     elements.dialog.close();
   });
@@ -467,6 +552,14 @@
   };
 
   window.setLeaderboardData = function (nextData) {
+    const existingStats = data.channelStats || {};
+    nextData.channelStats = {
+      ...existingStats,
+      ...(nextData.channelStats || {}),
+      youtubeApiKey: nextData.channelStats?.youtubeApiKey || existingStats.youtubeApiKey,
+      youtubeChannelId: nextData.channelStats?.youtubeChannelId || existingStats.youtubeChannelId
+    };
+    subscriberLoadStarted = false;
     data = nextData;
     window.MALEDucadosData = nextData;
     render();

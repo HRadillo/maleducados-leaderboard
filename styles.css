@@ -235,7 +235,7 @@ select {
 
 .metric-row {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 14px;
   margin: 16px 0 38px;
 }
@@ -268,6 +268,19 @@ select {
   display: block;
   margin-top: 8px;
   font-size: 32px;
+}
+
+.metric small {
+  display: block;
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.rivalry-metric {
+  border-color: rgba(145, 167, 255, 0.32);
 }
 
 .metric a {
@@ -533,6 +546,15 @@ tbody tr:hover {
   font-weight: 800;
 }
 
+.commander-link {
+  color: var(--text);
+  text-decoration: none;
+}
+
+.commander-link:hover {
+  color: var(--green);
+}
+
 .person-button {
   margin: 0;
   border: 0;
@@ -668,6 +690,25 @@ tbody tr:hover {
   backdrop-filter: blur(12px);
 }
 
+.card-preview {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 20;
+  width: 250px;
+  pointer-events: none;
+  filter: drop-shadow(0 24px 40px rgba(0, 0, 0, 0.58));
+}
+
+.card-preview[hidden] {
+  display: none !important;
+}
+
+.card-preview img {
+  width: 100%;
+  border-radius: 14px;
+}
+
 .icon-button {
   position: absolute;
   top: 12px;
@@ -797,10 +838,112 @@ tbody tr:hover {
   opacity: 0.62;
 }
 
+.admin-grid {
+  display: grid;
+  gap: 14px;
+  margin-top: 18px;
+}
+
+.editor-card {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: rgba(0, 0, 0, 0.34);
+  padding: 16px;
+}
+
+.editor-card-head {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.editor-card h3 {
+  margin: 0;
+  font-size: 20px;
+}
+
+.editor-card p {
+  margin: 5px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.editor-actions-inline {
+  display: flex;
+  gap: 8px;
+}
+
+.admin-button.danger {
+  border-color: rgba(255, 118, 107, 0.44);
+  color: var(--text);
+  background: rgba(255, 118, 107, 0.16);
+}
+
+.editor-fields,
 .quick-entry {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 12px;
+}
+
+.editor-fields.two-col {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.editor-fields .wide {
+  grid-column: 1 / -1;
+}
+
+.admin-list {
+  display: grid;
+  gap: 8px;
+  max-height: 360px;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.admin-list-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  width: 100%;
+  min-height: 58px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.035);
+  padding: 10px 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.admin-list-row:hover,
+.admin-list-row.is-selected {
+  border-color: rgba(117, 213, 166, 0.42);
+  background: rgba(117, 213, 166, 0.1);
+}
+
+.admin-list-row strong,
+.admin-list-row small {
+  display: block;
+}
+
+.admin-list-row small {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.deck-admin-list .admin-list-row {
+  border-color: rgba(145, 167, 255, 0.16);
+}
+
+.quick-entry {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   margin: 18px 0;
 }
 
@@ -849,6 +992,26 @@ tbody tr:hover {
   color: var(--red);
 }
 
+.advanced-json {
+  margin-top: 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.025);
+  padding: 14px;
+}
+
+.advanced-json summary {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 900;
+  cursor: pointer;
+  text-transform: uppercase;
+}
+
+.advanced-json .json-editor-label {
+  margin-top: 14px;
+}
+
 @media (max-width: 960px) {
   .app-shell {
     grid-template-columns: 1fr;
@@ -888,6 +1051,7 @@ tbody tr:hover {
 
   .metric-row,
   .toolbar,
+  .editor-fields.two-col,
   .quick-entry {
     grid-template-columns: repeat(2, 1fr);
   }
@@ -914,12 +1078,15 @@ tbody tr:hover {
 
   .metric-row,
   .toolbar,
+  .editor-fields.two-col,
   .quick-entry,
   .dialog-stats {
     grid-template-columns: 1fr;
   }
 
   .admin-locked,
+  .editor-card-head,
+  .editor-actions-inline,
   .admin-actions {
     align-items: stretch;
     flex-direction: column;

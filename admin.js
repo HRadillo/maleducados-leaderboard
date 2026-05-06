@@ -7,15 +7,31 @@ const nodes = {
   login: document.querySelector("#adminLogin"),
   logout: document.querySelector("#adminLogout"),
   status: document.querySelector("#adminStatus"),
+  message: document.querySelector("#adminMessage"),
+  settingsForm: document.querySelector("#siteSettingsForm"),
+  playerList: document.querySelector("#playerList"),
+  playerForm: document.querySelector("#playerForm"),
+  playerFormTitle: document.querySelector("#playerFormTitle"),
+  newPlayer: document.querySelector("#newPlayer"),
+  deletePlayer: document.querySelector("#deletePlayer"),
+  deckList: document.querySelector("#deckList"),
+  deckForm: document.querySelector("#deckForm"),
+  deckFormTitle: document.querySelector("#deckFormTitle"),
+  newDeck: document.querySelector("#newDeck"),
+  deleteDeck: document.querySelector("#deleteDeck"),
   json: document.querySelector("#adminJson"),
   loadJson: document.querySelector("#loadJson"),
-  saveJson: document.querySelector("#saveJson"),
-  message: document.querySelector("#adminMessage"),
-  form: document.querySelector("#quickEntryForm")
+  saveJson: document.querySelector("#saveJson")
 };
 
 let firebaseApi = null;
 let currentUser = null;
+let selectedPlayerId = "";
+let selectedDeckPlayerId = "";
+let selectedDeckIndex = "";
+
+nodes.login.disabled = true;
+nodes.login.textContent = "Cargando Google...";
 
 function setMessage(text, type = "info") {
   nodes.message.textContent = text;
@@ -26,7 +42,7 @@ function friendlyAuthError(error) {
   const code = error?.code || "";
 
   if (code === "auth/unauthorized-domain") {
-    return "Firebase está rechazando este dominio. En Firebase Authentication > Settings > Authorized domains agrega: hradillo.github.io";
+    return "Firebase está rechazando este dominio. En Authentication > Settings > Authorized domains agrega el dominio donde está publicada la página.";
   }
 
   if (code === "auth/operation-not-allowed") {
@@ -38,7 +54,7 @@ function friendlyAuthError(error) {
   }
 
   if (code === "auth/popup-closed-by-user") {
-    return "El popup se cerró antes de terminar. Si se cierra solo, revisa que hradillo.github.io esté autorizado en Firebase.";
+    return "El popup se cerró antes de terminar.";
   }
 
   return error?.message || "No se pudo iniciar sesión.";
@@ -48,7 +64,12 @@ function getCurrentData() {
   return window.getLeaderboardData ? window.getLeaderboardData() : window.MALEDucadosData;
 }
 
-function fillEditor() {
+function setCurrentData(nextData) {
+  window.setLeaderboardData(nextData);
+  renderAdmin();
+}
+
+function fillJsonEditor() {
   nodes.json.value = JSON.stringify(getCurrentData(), null, 2);
 }
 
@@ -70,6 +91,38 @@ function normalizeColors(value) {
   return allowedColors.filter((color) => colors.includes(color));
 }
 
+function colorsToText(colors) {
+  return allowedColors.filter((color) => colors?.includes(color)).join("");
+}
+
+function scryfallImageFromPayload(payload) {
+  if (payload.image_uris?.large) return payload.image_uris.large;
+  if (payload.image_uris?.normal) return payload.image_uris.normal;
+
+  const face = payload.card_faces?.find((cardFace) => cardFace.image_uris?.large || cardFace.image_uris?.normal);
+  return face?.image_uris?.large || face?.image_uris?.normal || "";
+}
+
+async function fetchCommanderImage(commander) {
+  const url = new URL("https://api.scryfall.com/cards/named");
+  url.searchParams.set("exact", commander);
+
+  let response = await fetch(url);
+  if (!response.ok) {
+    url.searchParams.delete("exact");
+    url.searchParams.set("fuzzy", commander);
+    response = await fetch(url);
+  }
+
+  if (!response.ok) return "";
+
+  return scryfallImageFromPayload(await response.json());
+}
+
+function playerById(data, playerId) {
+  return data.players.find((player) => player.id === playerId);
+}
+
 function recomputePlayer(player) {
   const totals = player.decks.reduce(
     (accumulator, deck) => {
@@ -87,84 +140,154 @@ function recomputePlayer(player) {
   player.colors = allowedColors.filter((color) => totals.colors.has(color));
 }
 
-function addOrUpdateDeck(formData) {
-  const nextData = getCurrentData();
-  const playerName = formData.get("playerName").trim();
-  const commander = formData.get("commander").trim();
-  const colors = normalizeColors(formData.get("colors"));
-
-  if (!playerName || !commander || !colors.length) {
-    throw new Error("Jugador, comandante y colores son obligatorios.");
-  }
-
-  let player = nextData.players.find((item) => item.name.toLowerCase() === playerName.toLowerCase());
-
-  if (!player) {
-    player = {
-      id: slugify(playerName),
-      name: playerName,
-      handle: formData.get("handle").trim() || `@${slugify(playerName)}`,
-      role: formData.get("role"),
-      appearances: 0,
-      wins: 0,
-      losses: 0,
-      latestAppearance: nextData.latestTable?.title || "",
-      signature: "",
-      colors: [],
-      decks: []
-    };
-    nextData.players.push(player);
-  }
-
-  player.handle = formData.get("handle").trim() || player.handle;
-  player.role = formData.get("role") || player.role;
-
-  const deckPayload = {
-    commander,
-    archetype: formData.get("archetype").trim() || "Commander",
-    colors,
-    wins: Number(formData.get("wins") || 0),
-    losses: Number(formData.get("losses") || 0),
-    moxfield: formData.get("moxfield").trim() || "https://moxfield.com/users/LosMaleducadosDelMagic",
-    videoUrl: formData.get("videoUrl").trim() || nextData.socials[0].url
-  };
-
-  const deckIndex = player.decks.findIndex((deck) => deck.commander.toLowerCase() === commander.toLowerCase());
-  if (deckIndex >= 0) {
-    player.decks[deckIndex] = { ...player.decks[deckIndex], ...deckPayload };
-  } else {
-    player.decks.push(deckPayload);
-  }
-
-  recomputePlayer(player);
-  window.setLeaderboardData(nextData);
-  fillEditor();
+function recomputeAll(data) {
+  data.players.forEach(recomputePlayer);
 }
 
-async function saveData(nextData) {
+function renderSettingsForm() {
+  const data = getCurrentData();
+  const latestTable = data.latestTable || {};
+  const stats = data.channelStats || {};
+  const fields = nodes.settingsForm.elements;
+
+  fields.season.value = data.season || "";
+  fields.lastUpdated.value = data.lastUpdated || "";
+  fields.latestTitle.value = latestTable.title || "";
+  fields.latestDate.value = latestTable.date || "";
+  fields.latestWinner.value = latestTable.winner || "";
+  fields.latestDeck.value = latestTable.deck || "";
+  fields.latestVideo.value = latestTable.videoUrl || "";
+  fields.subscribers.value = stats.subscribers || "";
+}
+
+function renderPlayerList() {
+  const data = getCurrentData();
+
+  nodes.playerList.innerHTML = data.players
+    .map(
+      (player) => `
+        <button class="admin-list-row ${player.id === selectedPlayerId ? "is-selected" : ""}" type="button" data-player-id="${player.id}">
+          <span>
+            <strong>${player.name}</strong>
+            <small>${player.role} | ${player.wins}-${player.losses} | ${player.decks.length} decks</small>
+          </span>
+          <span>${player.handle || ""}</span>
+        </button>
+      `
+    )
+    .join("");
+}
+
+function renderPlayerForm() {
+  const data = getCurrentData();
+  const player = playerById(data, selectedPlayerId);
+  const form = nodes.playerForm;
+  const fields = form.elements;
+
+  nodes.playerFormTitle.textContent = player ? "Editar jugador" : "Nuevo jugador";
+  nodes.deletePlayer.hidden = !player;
+
+  fields.id.value = player?.id || "";
+  fields.name.value = player?.name || "";
+  fields.handle.value = player?.handle || "";
+  fields.role.value = player?.role || "Invitado";
+  fields.latestAppearance.value = player?.latestAppearance || "";
+  fields.signature.value = player?.signature || "";
+}
+
+function renderPlayerOptions() {
+  const data = getCurrentData();
+  nodes.deckForm.playerSelect.innerHTML = data.players
+    .map((player) => `<option value="${player.id}">${player.name}</option>`)
+    .join("");
+}
+
+function renderDeckList() {
+  const data = getCurrentData();
+  const rows = data.players.flatMap((player) =>
+    player.decks.map((deck, index) => ({ player, deck, index }))
+  );
+
+  nodes.deckList.innerHTML = rows.length
+    ? rows
+        .map(
+          ({ player, deck, index }) => `
+            <button class="admin-list-row ${player.id === selectedDeckPlayerId && String(index) === String(selectedDeckIndex) ? "is-selected" : ""}" type="button" data-deck-player-id="${player.id}" data-deck-index="${index}">
+              <span>
+                <strong>${deck.commander}</strong>
+                <small>${player.name} | ${deck.archetype || "Commander"} | ${colorsToText(deck.colors)}</small>
+              </span>
+              <span>${deck.wins || 0}-${deck.losses || 0}</span>
+            </button>
+          `
+        )
+        .join("")
+    : '<p class="empty-state">Aún no hay decks registrados.</p>';
+}
+
+function renderDeckForm() {
+  const data = getCurrentData();
+  const player = playerById(data, selectedDeckPlayerId);
+  const deck = player?.decks?.[Number(selectedDeckIndex)];
+  const form = nodes.deckForm;
+  const fields = form.elements;
+
+  nodes.deckFormTitle.textContent = deck ? "Editar deck" : "Nuevo deck";
+  nodes.deleteDeck.hidden = !deck;
+  renderPlayerOptions();
+
+  fields.playerId.value = player?.id || "";
+  fields.deckIndex.value = deck ? selectedDeckIndex : "";
+  fields.playerSelect.value = player?.id || data.players[0]?.id || "";
+  fields.commander.value = deck?.commander || "";
+  fields.archetype.value = deck?.archetype || "";
+  fields.colors.value = colorsToText(deck?.colors) || "";
+  fields.wins.value = deck?.wins ?? 0;
+  fields.losses.value = deck?.losses ?? 0;
+  fields.moxfield.value = deck?.moxfield || "";
+  fields.videoUrl.value = deck?.videoUrl || "";
+}
+
+function renderAdmin() {
+  renderSettingsForm();
+  renderPlayerList();
+  renderPlayerForm();
+  renderDeckList();
+  renderDeckForm();
+  fillJsonEditor();
+}
+
+async function saveData(nextData, message = "Cambios guardados.") {
   if (!firebaseApi || !currentUser) {
     throw new Error("Inicia sesión con la cuenta autorizada antes de guardar.");
   }
+
+  recomputeAll(nextData);
+  window.setLeaderboardData(nextData);
 
   await firebaseApi.setDoc(firebaseApi.docRef, {
     data: nextData,
     updatedAt: firebaseApi.serverTimestamp(),
     updatedBy: currentUser.email
   });
+
+  renderAdmin();
+  setMessage(message, "success");
 }
 
 async function loadRemoteData() {
   const snapshot = await firebaseApi.getDoc(firebaseApi.docRef);
   if (!snapshot.exists()) {
-    fillEditor();
+    renderAdmin();
     return;
   }
 
   const remoteData = snapshot.data()?.data;
   if (remoteData?.players) {
-    window.setLeaderboardData(remoteData);
+    setCurrentData(remoteData);
+  } else {
+    renderAdmin();
   }
-  fillEditor();
 }
 
 function setAdminVisibility(user) {
@@ -176,8 +299,8 @@ function setAdminVisibility(user) {
 
   if (isAdmin) {
     nodes.status.textContent = `Admin | ${user.email}`;
-    fillEditor();
-    setMessage("Sesión autorizada. Puedes editar y guardar cambios.", "success");
+    renderAdmin();
+    setMessage("Sesión autorizada. Puedes editar desde formularios.", "success");
   } else if (user) {
     setMessage("Esta cuenta no tiene permisos de edición.", "error");
   }
@@ -216,6 +339,9 @@ async function initFirebase() {
     docRef
   };
 
+  nodes.login.disabled = false;
+  nodes.login.textContent = "Entrar con Google";
+
   firebaseApi.onAuthStateChanged(auth, async (user) => {
     setAdminVisibility(user);
     if (user?.email?.toLowerCase() === firebaseSetup.adminEmail.toLowerCase()) {
@@ -230,6 +356,11 @@ async function initFirebase() {
 
 nodes.login.addEventListener("click", async () => {
   try {
+    if (!firebaseApi) {
+      setMessage("Firebase todavía está cargando. Intenta de nuevo en unos segundos.", "error");
+      return;
+    }
+
     await firebaseApi.signInWithPopup(firebaseApi.auth, firebaseApi.provider);
   } catch (error) {
     setMessage(friendlyAuthError(error), "error");
@@ -246,27 +377,177 @@ nodes.logout.addEventListener("click", async () => {
   nodes.panel.hidden = true;
 });
 
-nodes.loadJson.addEventListener("click", fillEditor);
+nodes.settingsForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const data = getCurrentData();
+  const fields = nodes.settingsForm.elements;
+
+  data.season = fields.season.value.trim();
+  data.lastUpdated = fields.lastUpdated.value;
+  data.latestTable = {
+    ...(data.latestTable || {}),
+    title: fields.latestTitle.value.trim(),
+    date: fields.latestDate.value.trim(),
+    winner: fields.latestWinner.value.trim(),
+    deck: fields.latestDeck.value.trim(),
+    videoUrl: fields.latestVideo.value.trim()
+  };
+  data.channelStats = {
+    ...(data.channelStats || {}),
+    subscribers: fields.subscribers.value.trim() || "N/D"
+  };
+
+  await saveData(data, "Resumen actualizado.");
+});
+
+nodes.newPlayer.addEventListener("click", () => {
+  selectedPlayerId = "";
+  renderPlayerForm();
+});
+
+nodes.playerList.addEventListener("click", (event) => {
+  const row = event.target.closest("[data-player-id]");
+  if (!row) return;
+
+  selectedPlayerId = row.dataset.playerId;
+  renderAdmin();
+});
+
+nodes.playerForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const data = getCurrentData();
+  const fields = nodes.playerForm.elements;
+  const name = fields.name.value.trim();
+
+  if (!name) {
+    setMessage("El nombre del jugador es obligatorio.", "error");
+    return;
+  }
+
+  let id = fields.id.value || slugify(name);
+  const duplicate = data.players.find((player) => player.id === id && player.id !== fields.id.value);
+  if (duplicate) id = `${id}-${Date.now()}`;
+
+  let player = playerById(data, fields.id.value);
+  if (!player) {
+    player = { id, decks: [], wins: 0, losses: 0, appearances: 0, colors: [] };
+    data.players.push(player);
+  }
+
+  player.id = id;
+  player.name = name;
+  player.handle = fields.handle.value.trim();
+  player.role = fields.role.value;
+  player.latestAppearance = fields.latestAppearance.value.trim();
+  player.signature = fields.signature.value.trim();
+
+  selectedPlayerId = player.id;
+  await saveData(data, "Jugador guardado.");
+});
+
+nodes.deletePlayer.addEventListener("click", async () => {
+  if (!selectedPlayerId) return;
+  const data = getCurrentData();
+  const player = playerById(data, selectedPlayerId);
+  if (!player) return;
+
+  const confirmed = window.confirm(`¿Eliminar a ${player.name} y todos sus decks?`);
+  if (!confirmed) return;
+
+  data.players = data.players.filter((item) => item.id !== selectedPlayerId);
+  selectedPlayerId = "";
+  selectedDeckPlayerId = "";
+  selectedDeckIndex = "";
+  await saveData(data, "Jugador eliminado.");
+});
+
+nodes.newDeck.addEventListener("click", () => {
+  selectedDeckPlayerId = "";
+  selectedDeckIndex = "";
+  renderDeckForm();
+});
+
+nodes.deckList.addEventListener("click", (event) => {
+  const row = event.target.closest("[data-deck-player-id]");
+  if (!row) return;
+
+  selectedDeckPlayerId = row.dataset.deckPlayerId;
+  selectedDeckIndex = row.dataset.deckIndex;
+  renderAdmin();
+});
+
+nodes.deckForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const data = getCurrentData();
+  const fields = nodes.deckForm.elements;
+  const player = playerById(data, fields.playerSelect.value);
+  const colors = normalizeColors(fields.colors.value);
+
+  if (!player) {
+    setMessage("Selecciona un jugador válido.", "error");
+    return;
+  }
+
+  if (!fields.commander.value.trim() || !colors.length) {
+    setMessage("Comandante y colores son obligatorios.", "error");
+    return;
+  }
+
+  const payload = {
+    commander: fields.commander.value.trim(),
+    archetype: fields.archetype.value.trim() || "Commander",
+    colors,
+    wins: Number(fields.wins.value || 0),
+    losses: Number(fields.losses.value || 0),
+    moxfield: fields.moxfield.value.trim() || "https://moxfield.com/users/LosMaleducadosDelMagic",
+    videoUrl: fields.videoUrl.value.trim() || data.socials[0].url,
+    cardImage: ""
+  };
+
+  const editingSamePlayer = fields.playerId.value === player.id && fields.deckIndex.value !== "";
+  if (editingSamePlayer) {
+    payload.cardImage = player.decks[Number(fields.deckIndex.value)]?.cardImage || "";
+    if (!payload.cardImage || player.decks[Number(fields.deckIndex.value)]?.commander !== payload.commander) {
+      payload.cardImage = await fetchCommanderImage(payload.commander);
+    }
+    player.decks[Number(fields.deckIndex.value)] = payload;
+    selectedDeckIndex = fields.deckIndex.value;
+  } else {
+    payload.cardImage = await fetchCommanderImage(payload.commander);
+    if (fields.playerId.value && fields.deckIndex.value !== "") {
+      const oldPlayer = playerById(data, fields.playerId.value);
+      oldPlayer?.decks.splice(Number(fields.deckIndex.value), 1);
+    }
+    player.decks.push(payload);
+    selectedDeckIndex = String(player.decks.length - 1);
+  }
+
+  selectedDeckPlayerId = player.id;
+  await saveData(data, "Deck guardado.");
+});
+
+nodes.deleteDeck.addEventListener("click", async () => {
+  if (!selectedDeckPlayerId || selectedDeckIndex === "") return;
+  const data = getCurrentData();
+  const player = playerById(data, selectedDeckPlayerId);
+  const deck = player?.decks?.[Number(selectedDeckIndex)];
+  if (!deck) return;
+
+  const confirmed = window.confirm(`¿Eliminar ${deck.commander}?`);
+  if (!confirmed) return;
+
+  player.decks.splice(Number(selectedDeckIndex), 1);
+  selectedDeckPlayerId = "";
+  selectedDeckIndex = "";
+  await saveData(data, "Deck eliminado.");
+});
+
+nodes.loadJson.addEventListener("click", fillJsonEditor);
 
 nodes.saveJson.addEventListener("click", async () => {
   try {
     const nextData = JSON.parse(nodes.json.value);
-    window.setLeaderboardData(nextData);
-    await saveData(nextData);
-    setMessage("Cambios guardados en Firestore.", "success");
-  } catch (error) {
-    setMessage(error.message, "error");
-  }
-});
-
-nodes.form.addEventListener("submit", async (event) => {
-  event.preventDefault();
-
-  try {
-    addOrUpdateDeck(new FormData(nodes.form));
-    await saveData(getCurrentData());
-    nodes.form.reset();
-    setMessage("Deck actualizado y guardado.", "success");
+    await saveData(nextData, "JSON guardado.");
   } catch (error) {
     setMessage(error.message, "error");
   }
