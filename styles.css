@@ -143,7 +143,7 @@ select {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 360px;
   gap: 28px;
-  align-items: end;
+  align-items: start;
   min-height: 380px;
   padding: 38px;
   overflow: hidden;
@@ -199,6 +199,7 @@ select {
 }
 
 .hero-panel {
+  position: relative;
   display: grid;
   gap: 22px;
   padding: 24px;
@@ -207,6 +208,47 @@ select {
   background: rgba(0, 0, 0, 0.74);
   backdrop-filter: blur(18px);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.winner-fire {
+  position: absolute;
+  top: 22px;
+  right: 28px;
+  width: 138px;
+  height: 162px;
+  opacity: 0.96;
+  pointer-events: none;
+  filter:
+    drop-shadow(0 0 10px rgba(255, 123, 42, 0.28))
+    drop-shadow(0 0 24px rgba(255, 70, 32, 0.18));
+  animation: fire-glow 1.75s ease-in-out infinite alternate;
+}
+
+.winner-fire svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.flame {
+  transform-box: fill-box;
+  transform-origin: 50% 92%;
+}
+
+.flame-outer {
+  fill: url("#outerFlame");
+  animation: flame-sway 1.05s ease-in-out infinite alternate;
+}
+
+.flame-side {
+  fill: #ff7a22;
+  opacity: 0.78;
+  animation: flame-side 0.88s ease-in-out infinite alternate;
+}
+
+.flame-inner {
+  fill: url("#innerFlame");
+  animation: flame-inner 0.72s ease-in-out infinite alternate;
 }
 
 .hero-panel strong {
@@ -221,39 +263,49 @@ select {
   font-size: 13px;
 }
 
-.winner-name {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.winner-flame {
-  position: relative;
-  display: inline-block;
-  width: 16px;
-  height: 20px;
-  border-radius: 12px 12px 12px 3px;
-  background: linear-gradient(180deg, #ffd36a, #ff6d38 58%, #ff2d12);
-  transform: rotate(45deg);
-  animation: flame-flicker 1.1s ease-in-out infinite alternate;
-  box-shadow: 0 0 18px rgba(255, 109, 56, 0.42);
-}
-
-.winner-flame::after {
-  position: absolute;
-  inset: 6px 5px 4px 5px;
-  content: "";
-  border-radius: 10px 10px 10px 2px;
-  background: #ffe9a8;
-}
-
-@keyframes flame-flicker {
+@keyframes fire-glow {
   0% {
-    transform: rotate(45deg) scale(0.92);
+    filter:
+      drop-shadow(0 0 8px rgba(255, 130, 40, 0.22))
+      drop-shadow(0 0 20px rgba(255, 70, 32, 0.14));
   }
 
   100% {
-    transform: rotate(40deg) scale(1.04);
+    filter:
+      drop-shadow(0 0 13px rgba(255, 158, 58, 0.36))
+      drop-shadow(0 0 34px rgba(255, 75, 28, 0.22));
+  }
+}
+
+@keyframes flame-sway {
+  0% {
+    transform: translateX(-1px) rotate(-1.5deg) scaleX(0.97) scaleY(1.01);
+  }
+
+  100% {
+    transform: translateX(2px) rotate(1.6deg) scaleX(1.03) scaleY(0.98);
+  }
+}
+
+@keyframes flame-side {
+  0% {
+    transform: translateX(3px) translateY(2px) scaleX(0.92) scaleY(1.03);
+    opacity: 0.62;
+  }
+
+  100% {
+    transform: translateX(-2px) translateY(-2px) scaleX(1.08) scaleY(0.96);
+    opacity: 0.9;
+  }
+}
+
+@keyframes flame-inner {
+  0% {
+    transform: translateY(2px) scaleX(0.9) scaleY(1.06);
+  }
+
+  100% {
+    transform: translateY(-3px) scaleX(1.08) scaleY(0.94);
   }
 }
 
@@ -643,26 +695,30 @@ tbody tr:hover {
   width: 24px;
   height: 24px;
   border-radius: 999px;
-  color: #090a0c;
+  color: #050608;
   background: #e7e2c6;
   font-size: 12px;
   font-weight: 900;
+  text-shadow: none;
 }
 
 .mana.U {
+  color: #050608;
   background: #8dc8ff;
 }
 
 .mana.B {
-  color: var(--text);
-  background: #2e3138;
+  color: #ffffff;
+  background: #252932;
 }
 
 .mana.R {
+  color: #050608;
   background: #ff8b6b;
 }
 
 .mana.G {
+  color: #050608;
   background: #7adf9f;
 }
 

@@ -285,7 +285,7 @@
     elements.seasonLabel.textContent = `${data.season} | Actualizado ${data.lastUpdated}`;
     elements.latestTableTitle.textContent = latestTable.title || "Última mesa";
     elements.latestTableMeta.textContent = latestTable.date || "";
-    elements.latestTableWinner.innerHTML = `${latestTable.winner || "-"} <span class="winner-flame" aria-hidden="true"></span>`;
+    elements.latestTableWinner.textContent = latestTable.winner || "-";
     const latestDeck = findDeckByCommander(latestTable.deck) || {
       commander: latestTable.deck || "-",
       cardImage: latestTable.cardImage || "",
