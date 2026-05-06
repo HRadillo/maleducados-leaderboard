@@ -61,3 +61,20 @@ Los colores usan letras de Magic: `W`, `U`, `B`, `R`, `G`.
 ## Suscriptores en vivo
 
 El sitio incluye el espacio de suscriptores y el link de suscripción. Para que el conteo sea live en GitHub Pages, agrega en `data.js` un `youtubeApiKey` y `youtubeChannelId` dentro de `channelStats`; si no están configurados, se muestra el valor manual de `subscribers`.
+
+Si la API key está restringida por sitio web, agrega estos referrers permitidos:
+
+```txt
+https://maleducados-leaderboard.web.app/*
+https://maleducados-leaderboard.firebaseapp.com/*
+```
+
+Si sigues usando GitHub Pages como respaldo, agrega también:
+
+```txt
+https://hradillo.github.io/*
+```
+
+## Imágenes de comandantes
+
+Al guardar un deck desde el editor, el sitio busca la carta en Scryfall usando el nombre del comandante y guarda la imagen en `cardImage`. Si un deck viejo todavía no tiene imagen, la página intenta buscarla automáticamente cuando alguien hace hover sobre el nombre del comandante.
