@@ -4,8 +4,8 @@ window.MALEDucadosData = {
   channelStats: {
     subscribers: "N/D",
     subscribeUrl: "https://www.youtube.com/@losmaleducadosdelmagic?sub_confirmation=1",
-    youtubeApiKey: "",
-    youtubeChannelId: ""
+    youtubeApiKey: "AIzaSyDVA4HOq-I2TwuJ4USg7ZbS8DLz9fYn54Y",
+    youtubeChannelId: "UCNAuXN1EiCQgZuaCzkyLRSw"
   },
   latestTable: {
     title: "Secret Santa Commander",
