@@ -266,10 +266,14 @@ function parsePlayerLine(line) {
 
 function parseDeckLine(line) {
   const clean = cleanDescriptionText(line);
-  const url = clean.match(/https?:\/\/(?:www\.)?moxfield\.com\/decks\/[^\s)]+/i)?.[0] || "";
+  let url = clean.match(/https?:\/\/(?:www\.)?moxfield\.com\/decks\/[^\s)]+/i)?.[0] || "";
   if (!url) return null;
+  url = url.replace(/[.,;]+$/g, "");
+  const isTruncated = /(?:\.{3}|…)$/.test(url);
+  if (isTruncated) url = url.replace(/(?:\.{3}|…)$/g, "");
   const label = clean.split(url)[0].replace(/[:\-–—]+$/g, "").trim();
-  return { label, url };
+  const deckNumber = Number(label.match(/deck\s*(\d+)/i)?.[1] || "");
+  return { label, url, deckNumber, isTruncated };
 }
 
 function parseSocialLine(line) {
@@ -295,12 +299,15 @@ function participantsFromDescription(description = "") {
   return playerLines
     .map(parsePlayerLine)
     .filter(Boolean)
-    .map((participant) => {
-      const deckLink = deckLinks.find((deck) =>
+    .map((participant, index) => {
+      const namedDeckLink = deckLinks.find((deck) =>
         sameLooseName(deck.label, participant.commander) ||
         sameLooseName(deck.label, participant.name) ||
         sameLooseName(participant.commander.split(",")[0], deck.label)
       );
+      const numberedDeckLink = deckLinks.find((deck) => deck.deckNumber === index + 1);
+      const orderedDeckLink = deckLinks[index];
+      const deckLink = namedDeckLink || numberedDeckLink || orderedDeckLink;
       const social = socials.find((item) => sameLooseName(item.name, participant.name));
 
       return {
@@ -308,7 +315,7 @@ function participantsFromDescription(description = "") {
         name: participant.name,
         handle: social?.handle || "",
         commander: participant.commander,
-        moxfield: deckLink?.url || ""
+        moxfield: deckLink?.isTruncated ? "" : deckLink?.url || ""
       };
     });
 }
