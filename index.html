@@ -34,11 +34,19 @@
               <path d="M10 15h4v5h-4z"></path>
             </svg>
           </a>
-          <a class="rail-link" href="#registro" title="Registro" aria-label="Registro">
+          <a class="rail-link" href="#registro" title="Ranking" aria-label="Ranking">
             <svg aria-hidden="true" viewBox="0 0 24 24">
               <path d="M4 19V5"></path>
               <path d="M4 19h16"></path>
               <path d="m7 15 3-3 3 2 5-7"></path>
+            </svg>
+          </a>
+          <a class="rail-link" href="#estadisticas" title="Estadísticas" aria-label="Estadísticas">
+            <svg aria-hidden="true" viewBox="0 0 24 24">
+              <path d="M5 19V9"></path>
+              <path d="M12 19V5"></path>
+              <path d="M19 19v-7"></path>
+              <path d="M3 19h18"></path>
             </svg>
           </a>
           <a class="rail-link" href="#decks" title="Decks" aria-label="Decks">
@@ -122,59 +130,99 @@
           <div class="section-head">
             <div>
               <span class="section-kicker">Top 3</span>
-              <h2>Podium maleducado</h2>
+              <h2>Podium Maleducado</h2>
             </div>
           </div>
           <div id="podium" class="podium" aria-live="polite"></div>
         </section>
 
-        <section id="registro" class="board">
-          <div class="toolbar" aria-label="Controles del leaderboard">
-            <label class="search">
-              <span>Buscar</span>
-              <input id="searchInput" type="search" placeholder="Nombre o comandante">
-            </label>
-            <label>
-              <span>Rol</span>
-              <select id="roleFilter">
-                <option value="all">Todos</option>
-                <option value="Host">Hosts</option>
-                <option value="Invitada">Invitadas</option>
-                <option value="Invitado">Invitados</option>
-              </select>
-            </label>
-            <label>
-              <span>Color</span>
-              <select id="colorFilter"></select>
-            </label>
-            <label>
-              <span>Orden</span>
-              <select id="sortSelect">
-                <option value="score">Ranking</option>
-                <option value="wins">Victorias</option>
-                <option value="winrate">Win rate</option>
-                <option value="appearances">Apariciones</option>
-                <option value="decks">Decks</option>
-              </select>
-            </label>
+        <section id="registro" class="ranking-section">
+          <div class="section-head">
+            <div>
+              <span class="section-kicker">Tabla general</span>
+              <h2>Ranking</h2>
+            </div>
           </div>
+          <div class="board">
+            <div class="toolbar" aria-label="Controles del leaderboard">
+              <label class="search">
+                <span>Buscar</span>
+                <input id="searchInput" type="search" placeholder="Nombre o comandante">
+              </label>
+              <label>
+                <span>Rol</span>
+                <select id="roleFilter">
+                  <option value="all">Todos</option>
+                  <option value="Host">Hosts</option>
+                  <option value="Invitada">Invitadas</option>
+                  <option value="Invitado">Invitados</option>
+                </select>
+              </label>
+              <label>
+                <span>Color</span>
+                <select id="colorFilter"></select>
+              </label>
+              <label>
+                <span>Orden</span>
+                <select id="sortSelect">
+                  <option value="score">Ranking</option>
+                  <option value="wins">Victorias</option>
+                  <option value="winrate">Win rate</option>
+                  <option value="appearances">Apariciones</option>
+                  <option value="decks">Decks</option>
+                </select>
+              </label>
+            </div>
 
-          <div class="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th scope="col">Rank</th>
-                  <th scope="col">Jugador</th>
-                  <th scope="col">Wins</th>
-                  <th scope="col">Losses</th>
-                  <th scope="col">Win rate</th>
-                  <th scope="col">Decks</th>
-                  <th scope="col">Comandante</th>
-                  <th scope="col">Video</th>
-                </tr>
-              </thead>
-              <tbody id="leaderboardRows"></tbody>
-            </table>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th scope="col">Rank</th>
+                    <th scope="col">Jugador</th>
+                    <th scope="col">Wins</th>
+                    <th scope="col">Losses</th>
+                    <th scope="col">Win rate</th>
+                    <th scope="col">Decks</th>
+                    <th scope="col">Comandante</th>
+                    <th scope="col">Video</th>
+                  </tr>
+                </thead>
+                <tbody id="leaderboardRows"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <section id="estadisticas" class="stats-section">
+          <div class="section-head">
+            <div>
+              <span class="section-kicker">Metajuego</span>
+              <h2>Estadísticas</h2>
+            </div>
+          </div>
+          <div class="guild-stats-grid" aria-live="polite">
+            <article class="guild-panel">
+              <div class="guild-panel-head">
+                <span class="section-kicker">Popularidad</span>
+                <h3>Más Jugadas</h3>
+              </div>
+              <div id="guildPlayedStats" class="guild-stat-list"></div>
+            </article>
+            <article class="guild-panel">
+              <div class="guild-panel-head">
+                <span class="section-kicker">Resultados</span>
+                <h3>Más Ganadoras</h3>
+              </div>
+              <div id="guildWinStats" class="guild-stat-list"></div>
+            </article>
+            <article class="guild-panel">
+              <div class="guild-panel-head">
+                <span class="section-kicker">Riesgo</span>
+                <h3>Más Derrotadas</h3>
+              </div>
+              <div id="guildLossStats" class="guild-stat-list"></div>
+            </article>
           </div>
         </section>
 
@@ -182,7 +230,7 @@
           <div class="section-head">
             <div>
               <span class="section-kicker">Archivo</span>
-              <h2>Decks jugados</h2>
+              <h2>Decks Jugados</h2>
             </div>
           </div>
           <div id="deckGrid" class="deck-grid"></div>

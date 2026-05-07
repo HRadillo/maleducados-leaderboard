@@ -51,6 +51,7 @@
     ["WUBG", "Witch-Maw"],
     ["WUBRG", "Five Color"]
   ];
+  const colorOptionLabels = Object.fromEntries(colorOptions);
 
   const elements = {
     seasonLabel: document.querySelector("#seasonLabel"),
@@ -68,6 +69,9 @@
     hostGuestRate: document.querySelector("#hostGuestRate"),
     socialLinks: document.querySelector("#socialLinks"),
     podium: document.querySelector("#podium"),
+    guildPlayedStats: document.querySelector("#guildPlayedStats"),
+    guildWinStats: document.querySelector("#guildWinStats"),
+    guildLossStats: document.querySelector("#guildLossStats"),
     rows: document.querySelector("#leaderboardRows"),
     deckGrid: document.querySelector("#deckGrid"),
     search: document.querySelector("#searchInput"),
@@ -216,6 +220,69 @@
     return `<span class="mana-row">${colors
       .map((color) => `<span class="mana ${color}" title="${colorNames[color]}">${color}</span>`)
       .join("")}</span>`;
+  }
+
+  function guildName(guildKey) {
+    return colorOptionLabels[guildKey] || colorNames[guildKey] || "Colorless";
+  }
+
+  function guildStats() {
+    const stats = new Map();
+
+    allDecks(data.players).forEach((deck) => {
+      const guildKey = normalizeColors(deck.colors || []) || "C";
+      const current = stats.get(guildKey) || {
+        key: guildKey,
+        played: 0,
+        wins: 0,
+        losses: 0,
+        decks: 0
+      };
+
+      current.played += (Number(deck.wins) || 0) + (Number(deck.losses) || 0);
+      current.wins += Number(deck.wins) || 0;
+      current.losses += Number(deck.losses) || 0;
+      current.decks += 1;
+      stats.set(guildKey, current);
+    });
+
+    return [...stats.values()].map((stat) => ({
+      ...stat,
+      winRate: stat.played ? Math.round((stat.wins / stat.played) * 100) : 0
+    }));
+  }
+
+  function renderGuildStatList(items, metric, label) {
+    const visibleItems = items.filter((item) => item[metric] > 0).slice(0, 6);
+    const max = Math.max(...visibleItems.map((item) => item[metric]), 1);
+
+    if (!visibleItems.length) {
+      return '<p class="empty-state">Todavía no hay datos suficientes.</p>';
+    }
+
+    return visibleItems
+      .map((item, index) => {
+        const width = Math.max(8, Math.round((item[metric] / max) * 100));
+        return `
+          <article class="guild-stat-card">
+            <div class="guild-rank">${index + 1}</div>
+            <div class="guild-stat-body">
+              <div class="guild-stat-topline">
+                <div>
+                  <h4>${guildName(item.key)}</h4>
+                  <p>${item.key === "C" ? "Sin color" : item.key} | ${item.played} partidas | WR ${item.winRate}%</p>
+                </div>
+                <strong>${item[metric]}</strong>
+              </div>
+              ${item.key === "C" ? '<span class="mana-row"><span class="mana">C</span></span>' : manaPips(item.key.split(""))}
+              <div class="guild-bar" aria-label="${guildName(item.key)} ${label}: ${item[metric]}">
+                <span style="width: ${width}%; background: ${rateColor(metric === "losses" ? 100 - item.winRate : item.winRate)}"></span>
+              </div>
+            </div>
+          </article>
+        `;
+      })
+      .join("");
   }
 
   function playerSearchText(player) {
@@ -378,6 +445,17 @@
       .join("");
   }
 
+  function renderGuildStats() {
+    const stats = guildStats();
+    const byPlayed = [...stats].sort((a, b) => b.played - a.played || b.wins - a.wins || guildName(a.key).localeCompare(guildName(b.key)));
+    const byWins = [...stats].sort((a, b) => b.wins - a.wins || b.winRate - a.winRate || b.played - a.played);
+    const byLosses = [...stats].sort((a, b) => b.losses - a.losses || b.played - a.played || guildName(a.key).localeCompare(guildName(b.key)));
+
+    elements.guildPlayedStats.innerHTML = renderGuildStatList(byPlayed, "played", "partidas");
+    elements.guildWinStats.innerHTML = renderGuildStatList(byWins, "wins", "wins");
+    elements.guildLossStats.innerHTML = renderGuildStatList(byLosses, "losses", "losses");
+  }
+
   function renderRows() {
     const players = rankedPlayers(filteredPlayers());
 
@@ -501,6 +579,7 @@
   function render() {
     renderMetrics();
     renderPodium();
+    renderGuildStats();
     renderRows();
     renderDeckGrid();
   }

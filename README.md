@@ -11,6 +11,7 @@ Este sitio reúne en un solo lugar:
 - Ranking de jugadores e invitados.
 - Wins, losses y win rate.
 - Estadística de hosts vs invitados.
+- Estadísticas por guild/identidad de color: más jugadas, más ganadoras y más derrotadas.
 - Decks jugados por cada persona.
 - Links a Moxfield para consultar listas.
 - Links a videos de YouTube de las partidas.

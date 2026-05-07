@@ -590,6 +590,104 @@ h2 {
   text-transform: uppercase;
 }
 
+.stats-section {
+  margin-bottom: 38px;
+}
+
+.guild-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.guild-panel {
+  display: grid;
+  gap: 16px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background:
+    radial-gradient(circle at 100% 0%, rgba(117, 213, 166, 0.1), transparent 30%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.012)),
+    rgba(5, 6, 9, 0.96);
+}
+
+.guild-panel-head h3 {
+  margin: 6px 0 0;
+  font-size: 20px;
+}
+
+.guild-stat-list {
+  display: grid;
+  gap: 10px;
+}
+
+.guild-stat-card {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+  padding: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.guild-rank {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  color: #090a0c;
+  background: var(--gold);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.guild-stat-body {
+  display: grid;
+  min-width: 0;
+  gap: 8px;
+}
+
+.guild-stat-topline {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.guild-stat-topline h4 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.guild-stat-topline p {
+  margin: 3px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.guild-stat-topline strong {
+  color: var(--text);
+  font-size: 22px;
+}
+
+.guild-bar {
+  height: 7px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.09);
+}
+
+.guild-bar span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+}
+
 .board {
   overflow: hidden;
   margin-bottom: 38px;
@@ -1187,6 +1285,7 @@ tbody tr:hover {
     z-index: 5;
     flex-direction: row;
     justify-content: space-between;
+    gap: 10px;
     width: auto;
     height: 66px;
     padding: 10px;
@@ -1199,7 +1298,16 @@ tbody tr:hover {
   }
 
   .rail-nav {
-    display: flex;
+    display: grid;
+    flex: 1;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .rail-link {
+    width: 40px;
+    height: 40px;
+    justify-self: center;
   }
 
   .page {
@@ -1210,7 +1318,8 @@ tbody tr:hover {
 
   .hero,
   .podium,
-  .deck-grid {
+  .deck-grid,
+  .guild-stats-grid {
     grid-template-columns: 1fr;
   }
 
@@ -1395,6 +1504,14 @@ tbody tr:hover {
     min-height: auto;
     gap: 16px;
     padding: 18px;
+  }
+
+  .stats-section {
+    margin-bottom: 30px;
+  }
+
+  .guild-panel {
+    padding: 16px;
   }
 
   .podium-stats {
