@@ -278,7 +278,7 @@
             </div>
 
             <div class="admin-grid">
-              <form id="siteSettingsForm" class="editor-card">
+              <form id="siteSettingsForm" class="editor-card channel-summary-card">
                 <div class="editor-card-head">
                   <div>
                     <h3>Resumen del canal</h3>
@@ -297,6 +297,12 @@
                 </div>
               </form>
 
+              <div class="editor-group-heading">
+                <span class="section-kicker">Partidas</span>
+                <h3>Edición de mesas</h3>
+                <p>Usa esta parte para capturar videos completos, jugadores, comandantes y resultados.</p>
+              </div>
+
               <section class="editor-card table-manager-card">
                 <div class="editor-card-head">
                   <div>
@@ -312,7 +318,7 @@
                 <div class="editor-card-head">
                   <div>
                     <h3 id="tableFormTitle">Nueva mesa</h3>
-                    <p>Elige al ganador y el sitio sumará wins/losses automáticamente.</p>
+                    <p>Elige el resultado y el sitio sumará wins/losses automáticamente.</p>
                   </div>
                   <div class="editor-actions-inline">
                     <button class="admin-button secondary edit-table" type="button">Editar mesa</button>
@@ -326,8 +332,20 @@
                   <label><span>Mesa</span><input name="title" required placeholder="Nombre de la mesa/video"></label>
                   <label><span>Fecha</span><input name="date" type="date"></label>
                   <label>
-                    <span>Ganador</span>
+                    <span>Resultado</span>
+                    <select name="resultMode">
+                      <option value="single">Un ganador</option>
+                      <option value="two">2 vs 2 / dos ganadores</option>
+                      <option value="tie">Empate / nadie ganó</option>
+                    </select>
+                  </label>
+                  <label class="winner-field winner-one">
+                    <span>Ganador 1</span>
                     <select name="winner" required></select>
+                  </label>
+                  <label class="winner-field winner-two" hidden>
+                    <span>Ganador 2</span>
+                    <select name="winner2"></select>
                   </label>
                 </div>
                 <div class="participant-head">

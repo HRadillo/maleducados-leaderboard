@@ -231,6 +231,28 @@
     return player?.role || "Invitado";
   }
 
+  function isTieTable(table = {}) {
+    return table.resultMode === "tie" || table.isTie === true;
+  }
+
+  function tableWinnerIds(table = {}) {
+    if (isTieTable(table)) return [];
+    const ids = Array.isArray(table.winnerIds) ? table.winnerIds : [table.winnerId];
+    return [...new Set(ids.filter(Boolean))];
+  }
+
+  function tableWinners(table = {}) {
+    const winnerIds = tableWinnerIds(table);
+    return (table.participants || []).filter((participant) => winnerIds.includes(participant.id));
+  }
+
+  function tableWinnerSummary(table = {}) {
+    if (isTieTable(table)) return "Empate";
+    const names = tableWinners(table).map((participant) => participant.name).filter(Boolean);
+    if (!names.length) return "Sin ganador";
+    return names.join(" y ");
+  }
+
   function recordedDecks() {
     const tableRows = data.tables || [];
     const decks = new Map();
@@ -264,7 +286,11 @@
           tables: new Set()
         };
 
-        if (participant.id === table.winnerId) {
+        const winnerIds = tableWinnerIds(table);
+        if (isTieTable(table)) {
+          current.wins += 0;
+          current.losses += 0;
+        } else if (winnerIds.includes(participant.id)) {
           current.wins += 1;
         } else {
           current.losses += 1;
@@ -476,14 +502,12 @@
     const totalGames = tableRows.length;
     const leaderboardPlayers = recordedPlayers();
     const guestCount = leaderboardPlayers.filter((player) => player.role !== "Host").length;
-    const hostWins = tableRows.filter((table) => {
-      const winner = table.participants?.find((participant) => participant.id === table.winnerId);
-      return winner && playerRoleByName(winner.name) === "Host";
-    }).length;
-    const guestWins = tableRows.filter((table) => {
-      const winner = table.participants?.find((participant) => participant.id === table.winnerId);
-      return winner && playerRoleByName(winner.name) !== "Host";
-    }).length;
+    const hostWins = tableRows.reduce((total, table) => (
+      total + tableWinners(table).filter((winner) => playerRoleByName(winner.name) === "Host").length
+    ), 0);
+    const guestWins = tableRows.reduce((total, table) => (
+      total + tableWinners(table).filter((winner) => playerRoleByName(winner.name) !== "Host").length
+    ), 0);
     const rivalryTotal = hostWins + guestWins;
     const hostRate = rivalryTotal ? Math.round((hostWins / rivalryTotal) * 100) : 0;
     const guestRate = rivalryTotal ? 100 - hostRate : 0;

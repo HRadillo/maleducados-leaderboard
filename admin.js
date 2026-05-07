@@ -328,6 +328,27 @@ function findPlayerByName(data, name) {
   return data.players.find((player) => player.name.trim().toLowerCase() === name.trim().toLowerCase());
 }
 
+function isTieTable(table = {}) {
+  return table.resultMode === "tie" || table.isTie === true;
+}
+
+function tableWinnerIds(table = {}) {
+  if (isTieTable(table)) return [];
+  const ids = Array.isArray(table.winnerIds) ? table.winnerIds : [table.winnerId];
+  return [...new Set(ids.filter(Boolean))];
+}
+
+function tableWinners(table = {}) {
+  const winnerIds = tableWinnerIds(table);
+  return (table.participants || []).filter((participant) => winnerIds.includes(participant.id));
+}
+
+function tableWinnerSummary(table = {}) {
+  if (isTieTable(table)) return "Empate";
+  const names = tableWinners(table).map((participant) => participant.name).filter(Boolean);
+  return names.length ? names.join(" y ") : "Sin ganador";
+}
+
 function playerSuggestions() {
   return getCurrentData().players
     .map((player) => `<option value="${escapeAttribute(player.name)}"></option>`)
@@ -415,7 +436,11 @@ function applyTableToAggregates(data, table, direction = 1) {
     deck.moxfield = participant.moxfield || deck.moxfield;
     deck.videoUrl = table.videoUrl || deck.videoUrl;
 
-    if (participant.id === table.winnerId) {
+    const winnerIds = tableWinnerIds(table);
+    if (isTieTable(table)) {
+      deck.wins = Math.max(0, Number(deck.wins || 0));
+      deck.losses = Math.max(0, Number(deck.losses || 0));
+    } else if (winnerIds.includes(participant.id)) {
       deck.wins = Math.max(0, Number(deck.wins || 0) + direction);
     } else {
       deck.losses = Math.max(0, Number(deck.losses || 0) + direction);
@@ -482,18 +507,43 @@ function readParticipantRows() {
   }));
 }
 
-function syncWinnerOptions(selectedWinner = "") {
+function syncWinnerOptions(selectedWinner = "", selectedWinner2 = "") {
   const rows = readParticipantRows();
-  const currentWinner = selectedWinner || nodes.tableForm.elements.winner.value;
-
-  nodes.tableForm.elements.winner.innerHTML = rows
+  const fields = nodes.tableForm.elements;
+  const currentWinner = selectedWinner || fields.winner.value;
+  const currentWinner2 = selectedWinner2 || fields.winner2.value;
+  const options = rows
     .filter((participant) => participant.name)
     .map((participant) => `<option value="${participant.id}">${participant.name}</option>`)
     .join("");
 
-  nodes.tableForm.elements.winner.value = rows.some((participant) => participant.id === currentWinner && participant.name)
+  fields.winner.innerHTML = options;
+  fields.winner2.innerHTML = `<option value="">Seleccionar segundo ganador</option>${options}`;
+
+  fields.winner.value = rows.some((participant) => participant.id === currentWinner && participant.name)
     ? currentWinner
     : rows.find((participant) => participant.name)?.id || "";
+  fields.winner2.value = rows.some((participant) => participant.id === currentWinner2 && participant.name)
+    ? currentWinner2
+    : "";
+  updateResultModeUI();
+}
+
+function updateResultModeUI() {
+  const fields = nodes.tableForm.elements;
+  const mode = fields.resultMode.value;
+  const winnerOne = nodes.tableForm.querySelector(".winner-one");
+  const winnerTwo = nodes.tableForm.querySelector(".winner-two");
+
+  winnerOne.hidden = mode === "tie";
+  winnerTwo.hidden = mode !== "two";
+  fields.winner.required = mode !== "tie";
+  fields.winner2.required = mode === "two";
+
+  if (mode === "tie") {
+    fields.winner.value = "";
+    fields.winner2.value = "";
+  }
 }
 
 function renderParticipantRows() {
@@ -575,12 +625,11 @@ function renderTableList() {
   nodes.tableList.innerHTML = tables(data).length
     ? tables(data)
         .map((table) => {
-          const winner = table.participants.find((participant) => participant.id === table.winnerId);
           return `
             <button class="admin-list-row ${table.id === selectedTableId ? "is-selected" : ""}" type="button" data-table-id="${table.id}">
               <span>
                 <strong>${table.title}</strong>
-                <small>${table.participants.length} jugadores | Ganador: ${winner?.name || "Sin ganador"}</small>
+                <small>${table.participants.length} jugadores | Resultado: ${tableWinnerSummary(table)}</small>
               </span>
               <span>${table.date || ""}</span>
             </button>
@@ -603,10 +652,11 @@ function renderTableForm() {
   fields.title.value = table?.title || "";
   fields.videoUrl.value = table?.videoUrl || "";
   fields.date.value = formatDateInput(table?.date);
+  fields.resultMode.value = table?.resultMode || (table?.winnerIds?.length > 1 ? "two" : "single");
 
   hydrateDraftParticipants(table);
   renderParticipantRows();
-  syncWinnerOptions(table?.winnerId || "");
+  syncWinnerOptions(tableWinnerIds(table)[0] || "", tableWinnerIds(table)[1] || "");
 }
 
 function renderAdmin() {
@@ -779,6 +829,10 @@ nodes.participantList.addEventListener("input", () => {
   syncWinnerOptions();
 });
 
+nodes.tableForm.elements.resultMode.addEventListener("change", () => {
+  updateResultModeUI();
+});
+
 nodes.tableForm.elements.videoUrl.addEventListener("change", async (event) => {
   const video = await fetchYouTubeVideo(event.target.value.trim());
   if (!video) return;
@@ -898,12 +952,27 @@ nodes.tableForm.addEventListener("submit", async (event) => {
     return;
   }
 
-  if (!fields.winner.value) {
+  const resultMode = fields.resultMode.value;
+  const winnerIds = resultMode === "tie"
+    ? []
+    : [fields.winner.value, resultMode === "two" ? fields.winner2.value : ""].filter(Boolean);
+
+  if (resultMode !== "tie" && !winnerIds.length) {
     setMessage("Selecciona quién ganó la mesa.", "error");
     return;
   }
 
-  if (!participants.some((participant) => participant.id === fields.winner.value)) {
+  if (resultMode === "two" && winnerIds.length < 2) {
+    setMessage("Selecciona dos ganadores para una mesa 2 vs 2.", "error");
+    return;
+  }
+
+  if (new Set(winnerIds).size !== winnerIds.length) {
+    setMessage("Los dos ganadores deben ser jugadores distintos.", "error");
+    return;
+  }
+
+  if (winnerIds.some((winnerId) => !participants.some((participant) => participant.id === winnerId))) {
     setMessage("El ganador debe ser uno de los jugadores con comandante.", "error");
     return;
   }
@@ -925,7 +994,9 @@ nodes.tableForm.addEventListener("submit", async (event) => {
     title: fields.title.value.trim(),
     date: fields.date.value.trim(),
     videoUrl: fields.videoUrl.value.trim(),
-    winnerId: fields.winner.value,
+    resultMode,
+    winnerId: winnerIds[0] || "",
+    winnerIds,
     participants
   };
 
@@ -938,13 +1009,14 @@ nodes.tableForm.addEventListener("submit", async (event) => {
 
   applyTableToAggregates(data, nextTable, 1);
 
-  const winner = participants.find((participant) => participant.id === nextTable.winnerId);
+  const winners = tableWinners(nextTable);
+  const primaryWinner = winners[0];
   data.latestTable = {
     ...(data.latestTable || {}),
     title: nextTable.title,
     date: nextTable.date || "Último estreno",
-    winner: winner?.name || "",
-    deck: winner?.commander || "",
+    winner: isTieTable(nextTable) ? "Empate" : winners.map((winner) => winner.name).join(" y "),
+    deck: primaryWinner?.commander || "",
     videoUrl: nextTable.videoUrl
   };
 

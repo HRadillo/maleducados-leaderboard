@@ -1202,12 +1202,39 @@ tbody tr:hover {
 
 .admin-grid {
   display: grid;
-  gap: 14px;
+  gap: 16px;
   margin-top: 18px;
+}
+
+.channel-summary-card {
+  border-color: rgba(145, 167, 255, 0.22);
+  background:
+    linear-gradient(135deg, rgba(145, 167, 255, 0.1), transparent 42%),
+    rgba(0, 0, 0, 0.34);
+}
+
+.editor-group-heading {
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  margin-top: 16px;
+  padding-top: 22px;
+}
+
+.editor-group-heading h3 {
+  margin: 4px 0 0;
+  font-size: 24px;
+}
+
+.editor-group-heading p {
+  max-width: 680px;
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.5;
 }
 
 .table-manager-card {
   align-self: start;
+  border-color: rgba(117, 213, 166, 0.2);
 }
 
 .table-form-card {
@@ -1279,6 +1306,10 @@ tbody tr:hover {
 
 .editor-fields .wide {
   grid-column: 1 / -1;
+}
+
+.winner-field[hidden] {
+  display: none;
 }
 
 .admin-list {
