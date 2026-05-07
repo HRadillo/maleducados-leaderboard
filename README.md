@@ -12,7 +12,7 @@ Este sitio reúne en un solo lugar:
 - Wins, losses y win rate.
 - Estadística de hosts vs invitados.
 - Estadísticas por guild/identidad de color: más jugadas, más ganadoras y más derrotadas.
-- Decks jugados por cada persona.
+- Decks jugados en mesas guardadas.
 - Links a Moxfield para consultar listas.
 - Links a videos de YouTube de las partidas.
 - Imágenes de comandantes usando Scryfall.

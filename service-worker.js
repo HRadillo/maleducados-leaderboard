@@ -1,4 +1,4 @@
-const CACHE_NAME = "maleducados-leaderboard-v7";
+const CACHE_NAME = "maleducados-leaderboard-v8";
 const APP_SHELL = [
   "index.html",
   "styles.css",

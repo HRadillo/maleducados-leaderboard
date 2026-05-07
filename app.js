@@ -114,6 +114,15 @@
     return colorOrder.filter((color) => colors.includes(color)).join("");
   }
 
+  function slugify(value) {
+    return value
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "");
+  }
+
   function deckWinRate(deck) {
     const total = deck.wins + deck.losses;
     return total === 0 ? 0 : Math.round((deck.wins / total) * 100);
@@ -210,6 +219,57 @@
     );
   }
 
+  function playerRoleByName(playerName) {
+    const player = data.players.find((item) => item.name.trim().toLowerCase() === playerName.trim().toLowerCase());
+    return player?.role || "Invitado";
+  }
+
+  function recordedDecks() {
+    const tableRows = data.tables || [];
+    const decks = new Map();
+
+    tableRows.forEach((table) => {
+      (table.participants || []).forEach((participant) => {
+        const key = [
+          participant.name?.trim().toLowerCase(),
+          participant.commander?.trim().toLowerCase(),
+          participant.moxfield || ""
+        ].join("|");
+
+        if (!participant.name || !participant.commander) return;
+
+        const current = decks.get(key) || {
+          commander: participant.commander,
+          archetype: participant.archetype || "Commander",
+          colors: participant.colors || [],
+          wins: 0,
+          losses: 0,
+          moxfield: participant.moxfield || "https://moxfield.com/users/LosMaleducadosDelMagic",
+          videoUrl: table.videoUrl || data.socials[0].url,
+          cardImage: participant.cardImage || "",
+          cardUrl: participant.cardUrl || "",
+          player: participant.name,
+          playerId: slugify(participant.name || "jugador"),
+          role: playerRoleByName(participant.name)
+        };
+
+        if (participant.id === table.winnerId) {
+          current.wins += 1;
+        } else {
+          current.losses += 1;
+        }
+
+        current.videoUrl = table.videoUrl || current.videoUrl;
+        current.colors = participant.colors?.length ? participant.colors : current.colors;
+        current.cardImage = participant.cardImage || current.cardImage;
+        current.cardUrl = participant.cardUrl || current.cardUrl;
+        decks.set(key, current);
+      });
+    });
+
+    return [...decks.values()];
+  }
+
   function matchingDecks(player) {
     const query = state.query;
 
@@ -237,7 +297,7 @@
   function guildStats() {
     const stats = new Map();
 
-    allDecks(data.players).forEach((deck) => {
+    recordedDecks().forEach((deck) => {
       const guildKey = normalizeColors(deck.colors || []) || "C";
       const current = stats.get(guildKey) || {
         key: guildKey,
@@ -326,14 +386,16 @@
   }
 
   function filteredDecks() {
-    return filteredPlayers()
-      .flatMap((player) =>
-        matchingDecks(player).map((deck) => ({
-          ...deck,
-          player: player.name,
-          playerId: player.id
-        }))
-      );
+    return recordedDecks().filter((deck) => {
+      const matchesQuery =
+        !state.query ||
+        deck.player.toLowerCase().includes(state.query) ||
+        deck.commander.toLowerCase().includes(state.query);
+      const matchesRole = state.role === "all" || deck.role === state.role;
+      const matchesColor = state.color === "all" || normalizeColors(deck.colors || []) === state.color;
+
+      return matchesQuery && matchesRole && matchesColor;
+    });
   }
 
   function renderColorOptions() {
@@ -536,7 +598,7 @@
     const decks = filteredDecks().sort((a, b) => b.wins - a.wins || a.commander.localeCompare(b.commander));
 
     if (!decks.length) {
-      elements.deckGrid.innerHTML = '<p class="empty-state">No hay decks con esos filtros.</p>';
+      elements.deckGrid.innerHTML = '<p class="empty-state">No hay decks registrados en mesas guardadas con esos filtros.</p>';
       return;
     }
 
