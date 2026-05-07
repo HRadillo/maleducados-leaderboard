@@ -409,10 +409,17 @@
 
   function renderMetrics() {
     const players = data.players;
-    const totalGames = players.reduce((sum, player) => sum + player.wins, 0);
+    const tableRows = data.tables || [];
+    const totalGames = tableRows.length;
     const guestCount = players.filter((player) => player.role !== "Host").length;
-    const hostWins = players.filter((player) => player.role === "Host").reduce((sum, player) => sum + player.wins, 0);
-    const guestWins = players.filter((player) => player.role !== "Host").reduce((sum, player) => sum + player.wins, 0);
+    const hostWins = tableRows.filter((table) => {
+      const winner = table.participants?.find((participant) => participant.id === table.winnerId);
+      return winner && playerRoleByName(winner.name) === "Host";
+    }).length;
+    const guestWins = tableRows.filter((table) => {
+      const winner = table.participants?.find((participant) => participant.id === table.winnerId);
+      return winner && playerRoleByName(winner.name) !== "Host";
+    }).length;
     const rivalryTotal = hostWins + guestWins;
     const hostRate = rivalryTotal ? Math.round((hostWins / rivalryTotal) * 100) : 0;
     const guestRate = rivalryTotal ? 100 - hostRate : 0;
@@ -480,8 +487,8 @@
           return;
         }
 
-        elements.subscriberCount.textContent = formatNumber(Number(count));
-        elements.subscriberStatus.textContent = `YouTube ${formatUpdateTime()} | redondeado`;
+        elements.subscriberCount.textContent = count;
+        elements.subscriberStatus.textContent = `YouTube ${formatUpdateTime()}`;
       })
       .catch((error) => {
         console.warn("No se pudo cargar el conteo de suscriptores.", error);

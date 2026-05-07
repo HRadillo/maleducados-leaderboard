@@ -160,6 +160,14 @@ function commanderFromMoxfieldPayload(payload) {
   return payload.commanderName || payload.main?.name || "";
 }
 
+function cleanDescriptionText(value = "") {
+  return value
+    .replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}]/gu, "")
+    .replace(/[•◆◇🔹🔷▪▫■□●○]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 async function fetchMoxfieldDeck(moxfieldUrl) {
   const deckId = extractMoxfieldDeckId(moxfieldUrl);
   if (!deckId) return null;
@@ -212,8 +220,97 @@ async function fetchYouTubeVideo(videoUrl) {
 
   return {
     title: snippet.title || "",
-    publishedAt: formatDateInput(snippet.publishedAt)
+    publishedAt: formatDateInput(snippet.publishedAt),
+    description: snippet.description || ""
   };
+}
+
+function descriptionSections(description = "") {
+  const lines = description.split(/\r?\n/);
+  const playerLines = [];
+  const deckLines = [];
+  const socialLines = [];
+  let mode = "";
+
+  lines.forEach((line) => {
+    const lower = line.toLowerCase();
+    if (/jugadores|jugadores de la mesa|players/.test(lower)) {
+      mode = "players";
+      return;
+    }
+    if (/listas|decks|moxfield/.test(lower)) {
+      mode = "decks";
+    }
+    if (/redes|síguelos|siguelos|instagram|tiktok/.test(lower)) {
+      mode = "socials";
+    }
+    if (!line.trim()) return;
+    if (mode === "players") playerLines.push(line);
+    if (mode === "decks") deckLines.push(line);
+    if (mode === "socials") socialLines.push(line);
+  });
+
+  return { playerLines, deckLines, socialLines };
+}
+
+function parsePlayerLine(line) {
+  const clean = cleanDescriptionText(line);
+  const parts = clean.split(/\s[-–—]\s/);
+  if (parts.length < 2) return null;
+
+  return {
+    name: parts[0].trim(),
+    commander: parts.slice(1).join(" - ").replace(/\s*\+\s*Folk Hero/i, "").trim()
+  };
+}
+
+function parseDeckLine(line) {
+  const clean = cleanDescriptionText(line);
+  const url = clean.match(/https?:\/\/(?:www\.)?moxfield\.com\/decks\/[^\s)]+/i)?.[0] || "";
+  if (!url) return null;
+  const label = clean.split(url)[0].replace(/[:\-–—]+$/g, "").trim();
+  return { label, url };
+}
+
+function parseSocialLine(line) {
+  const clean = cleanDescriptionText(line);
+  const handle = clean.match(/@[\w.\-]+/)?.[0] || "";
+  if (!handle) return null;
+  const name = clean.split(/→|->|instagram|tiktok/i)[0].trim();
+  return { name, handle };
+}
+
+function sameLooseName(left = "", right = "") {
+  const normalize = (value) => value.toLowerCase().replace(/[^a-z0-9áéíóúñü]+/gi, "");
+  const a = normalize(left);
+  const b = normalize(right);
+  return Boolean(a && b && (a.includes(b) || b.includes(a)));
+}
+
+function participantsFromDescription(description = "") {
+  const { playerLines, deckLines, socialLines } = descriptionSections(description);
+  const deckLinks = deckLines.map(parseDeckLine).filter(Boolean);
+  const socials = socialLines.map(parseSocialLine).filter(Boolean);
+
+  return playerLines
+    .map(parsePlayerLine)
+    .filter(Boolean)
+    .map((participant) => {
+      const deckLink = deckLinks.find((deck) =>
+        sameLooseName(deck.label, participant.commander) ||
+        sameLooseName(deck.label, participant.name) ||
+        sameLooseName(participant.commander.split(",")[0], deck.label)
+      );
+      const social = socials.find((item) => sameLooseName(item.name, participant.name));
+
+      return {
+        ...emptyParticipant(),
+        name: participant.name,
+        handle: social?.handle || "",
+        commander: participant.commander,
+        moxfield: deckLink?.url || ""
+      };
+    });
 }
 
 function playerById(data, playerId) {
@@ -680,6 +777,13 @@ nodes.tableForm.elements.videoUrl.addEventListener("change", async (event) => {
   if (!video) return;
   if (!nodes.tableForm.title.value.trim()) nodes.tableForm.title.value = video.title;
   if (!nodes.tableForm.date.value) nodes.tableForm.date.value = video.publishedAt;
+
+  const parsedParticipants = participantsFromDescription(video.description);
+  if (parsedParticipants.length) {
+    draftParticipants = parsedParticipants;
+    renderParticipantRows();
+    setMessage(`Autollené ${parsedParticipants.length} jugadores desde la descripción del video.`, "success");
+  }
 });
 
 nodes.participantList.addEventListener("click", (event) => {
