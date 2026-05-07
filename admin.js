@@ -9,16 +9,13 @@ const nodes = {
   status: document.querySelector("#adminStatus"),
   message: document.querySelector("#adminMessage"),
   settingsForm: document.querySelector("#siteSettingsForm"),
-  playerList: document.querySelector("#playerList"),
-  playerForm: document.querySelector("#playerForm"),
-  playerFormTitle: document.querySelector("#playerFormTitle"),
-  newPlayer: document.querySelector("#newPlayer"),
-  deletePlayer: document.querySelector("#deletePlayer"),
-  deckList: document.querySelector("#deckList"),
-  deckForm: document.querySelector("#deckForm"),
-  deckFormTitle: document.querySelector("#deckFormTitle"),
-  newDeck: document.querySelector("#newDeck"),
-  deleteDeck: document.querySelector("#deleteDeck"),
+  tableList: document.querySelector("#tableList"),
+  tableForm: document.querySelector("#tableForm"),
+  tableFormTitle: document.querySelector("#tableFormTitle"),
+  newTable: document.querySelector("#newTable"),
+  deleteTable: document.querySelector("#deleteTable"),
+  addParticipant: document.querySelector("#addParticipant"),
+  participantList: document.querySelector("#participantList"),
   json: document.querySelector("#adminJson"),
   loadJson: document.querySelector("#loadJson"),
   saveJson: document.querySelector("#saveJson")
@@ -26,9 +23,8 @@ const nodes = {
 
 let firebaseApi = null;
 let currentUser = null;
-let selectedPlayerId = "";
-let selectedDeckPlayerId = "";
-let selectedDeckIndex = "";
+let selectedTableId = "";
+let draftParticipants = [];
 
 nodes.login.disabled = true;
 nodes.login.textContent = "Cargando Google...";
@@ -64,11 +60,6 @@ function getCurrentData() {
   return window.getLeaderboardData ? window.getLeaderboardData() : window.MALEDucadosData;
 }
 
-function setCurrentData(nextData) {
-  window.setLeaderboardData(nextData);
-  renderAdmin();
-}
-
 function fillJsonEditor() {
   nodes.json.value = JSON.stringify(getCurrentData(), null, 2);
 }
@@ -82,17 +73,20 @@ function slugify(value) {
     .replace(/^-|-$/g, "");
 }
 
-function normalizeColors(value) {
-  const colors = value
-    .toUpperCase()
-    .split("")
-    .filter((color, index, list) => allowedColors.includes(color) && list.indexOf(color) === index);
-
+function normalizeColors(colors = []) {
   return allowedColors.filter((color) => colors.includes(color));
 }
 
 function colorsToText(colors) {
   return allowedColors.filter((color) => colors?.includes(color)).join("");
+}
+
+function escapeAttribute(value = "") {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "&quot;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
 }
 
 function scryfallCardFromPayload(payload) {
@@ -104,6 +98,7 @@ function scryfallCardFromPayload(payload) {
   }
 
   return {
+    colors: normalizeColors(payload.color_identity || []),
     image,
     url: payload.scryfall_uri || ""
   };
@@ -120,13 +115,51 @@ async function fetchCommanderCard(commander) {
     response = await fetch(url);
   }
 
-  if (!response.ok) return { image: "", url: "" };
+  if (!response.ok) return { colors: [], image: "", url: "" };
 
   return scryfallCardFromPayload(await response.json());
 }
 
 function playerById(data, playerId) {
   return data.players.find((player) => player.id === playerId);
+}
+
+function findPlayerByName(data, name) {
+  return data.players.find((player) => player.name.trim().toLowerCase() === name.trim().toLowerCase());
+}
+
+function ensurePlayer(data, participant) {
+  const name = participant.name.trim();
+  let player = findPlayerByName(data, name);
+
+  if (!player) {
+    let id = slugify(name);
+    if (playerById(data, id)) id = `${id}-${Date.now()}`;
+    player = {
+      id,
+      name,
+      handle: participant.handle.trim(),
+      role: "Invitado",
+      appearances: 0,
+      wins: 0,
+      losses: 0,
+      latestAppearance: "",
+      signature: "",
+      colors: [],
+      decks: []
+    };
+    data.players.push(player);
+  }
+
+  if (participant.handle.trim()) player.handle = participant.handle.trim();
+  return player;
+}
+
+function findDeck(player, participant) {
+  return player.decks.find((deck) =>
+    deck.commander.trim().toLowerCase() === participant.commander.trim().toLowerCase() &&
+    (!participant.moxfield || deck.moxfield === participant.moxfield)
+  );
 }
 
 function recomputePlayer(player) {
@@ -150,6 +183,47 @@ function recomputeAll(data) {
   data.players.forEach(recomputePlayer);
 }
 
+function applyTableToAggregates(data, table, direction = 1) {
+  table.participants.forEach((participant) => {
+    const player = ensurePlayer(data, participant);
+    let deck = findDeck(player, participant);
+
+    if (!deck) {
+      deck = {
+        commander: participant.commander,
+        archetype: participant.archetype || "Commander",
+        colors: participant.colors || [],
+        wins: 0,
+        losses: 0,
+        moxfield: participant.moxfield || "https://moxfield.com/users/LosMaleducadosDelMagic",
+        videoUrl: table.videoUrl,
+        cardImage: participant.cardImage || "",
+        cardUrl: participant.cardUrl || ""
+      };
+      player.decks.push(deck);
+    }
+
+    deck.colors = participant.colors || deck.colors || [];
+    deck.cardImage = participant.cardImage || deck.cardImage || "";
+    deck.cardUrl = participant.cardUrl || deck.cardUrl || "";
+    deck.moxfield = participant.moxfield || deck.moxfield;
+    deck.videoUrl = table.videoUrl || deck.videoUrl;
+
+    if (participant.id === table.winnerId) {
+      deck.wins = Math.max(0, Number(deck.wins || 0) + direction);
+    } else {
+      deck.losses = Math.max(0, Number(deck.losses || 0) + direction);
+    }
+
+    player.latestAppearance = table.title;
+  });
+
+  data.players.forEach((player) => {
+    player.decks = player.decks.filter((deck) => Number(deck.wins || 0) + Number(deck.losses || 0) > 0);
+  });
+  recomputeAll(data);
+}
+
 function renderSettingsForm() {
   const data = getCurrentData();
   const latestTable = data.latestTable || {};
@@ -166,100 +240,121 @@ function renderSettingsForm() {
   fields.subscribers.value = stats.subscribers || "";
 }
 
-function renderPlayerList() {
-  const data = getCurrentData();
+function tables(data) {
+  data.tables ||= [];
+  return data.tables;
+}
 
-  nodes.playerList.innerHTML = data.players
-    .map(
-      (player) => `
-        <button class="admin-list-row ${player.id === selectedPlayerId ? "is-selected" : ""}" type="button" data-player-id="${player.id}">
-          <span>
-            <strong>${player.name}</strong>
-            <small>${player.role} | ${player.wins}-${player.losses} | ${player.decks.length} decks</small>
-          </span>
-          <span>${player.handle || ""}</span>
-        </button>
-      `
-    )
+function emptyParticipant() {
+  return {
+    id: crypto.randomUUID ? crypto.randomUUID() : `p-${Date.now()}-${Math.random()}`,
+    name: "",
+    handle: "",
+    commander: "",
+    archetype: "",
+    moxfield: "",
+    colors: [],
+    cardImage: "",
+    cardUrl: ""
+  };
+}
+
+function hydrateDraftParticipants(table) {
+  draftParticipants = table?.participants?.length
+    ? table.participants.map((participant) => ({ ...participant }))
+    : [emptyParticipant(), emptyParticipant(), emptyParticipant(), emptyParticipant()];
+}
+
+function readParticipantRows() {
+  return [...nodes.participantList.querySelectorAll(".participant-row")].map((row, index) => ({
+    ...(draftParticipants[index] || emptyParticipant()),
+    name: row.querySelector('[name="participantName"]').value.trim(),
+    handle: row.querySelector('[name="participantHandle"]').value.trim(),
+    commander: row.querySelector('[name="participantCommander"]').value.trim(),
+    archetype: row.querySelector('[name="participantArchetype"]').value.trim(),
+    moxfield: row.querySelector('[name="participantMoxfield"]').value.trim()
+  }));
+}
+
+function syncWinnerOptions(selectedWinner = "") {
+  const rows = readParticipantRows();
+  const currentWinner = selectedWinner || nodes.tableForm.elements.winner.value;
+
+  nodes.tableForm.elements.winner.innerHTML = rows
+    .filter((participant) => participant.name)
+    .map((participant) => `<option value="${participant.id}">${participant.name}</option>`)
     .join("");
+
+  nodes.tableForm.elements.winner.value = rows.some((participant) => participant.id === currentWinner && participant.name)
+    ? currentWinner
+    : rows.find((participant) => participant.name)?.id || "";
 }
 
-function renderPlayerForm() {
-  const data = getCurrentData();
-  const player = playerById(data, selectedPlayerId);
-  const form = nodes.playerForm;
-  const fields = form.elements;
-
-  nodes.playerFormTitle.textContent = player ? "Editar jugador" : "Nuevo jugador";
-  nodes.deletePlayer.hidden = !player;
-
-  fields.id.value = player?.id || "";
-  fields.name.value = player?.name || "";
-  fields.handle.value = player?.handle || "";
-  fields.role.value = player?.role || "Invitado";
-  fields.latestAppearance.value = player?.latestAppearance || "";
-  fields.signature.value = player?.signature || "";
-}
-
-function renderPlayerOptions() {
-  const data = getCurrentData();
-  nodes.deckForm.playerSelect.innerHTML = data.players
-    .map((player) => `<option value="${player.id}">${player.name}</option>`)
+function renderParticipantRows() {
+  nodes.participantList.innerHTML = draftParticipants
+    .map((participant, index) => `
+      <article class="participant-row" data-participant-index="${index}">
+        <div class="participant-row-head">
+          <strong>Jugador ${index + 1}</strong>
+          <button class="admin-button danger remove-participant" type="button">Quitar</button>
+        </div>
+        <div class="editor-fields two-col">
+          <label><span>Nombre</span><input name="participantName" placeholder="Nombre del jugador" value="${escapeAttribute(participant.name)}"></label>
+          <label><span>Username opcional</span><input name="participantHandle" placeholder="@usuario" value="${escapeAttribute(participant.handle)}"></label>
+          <label><span>Comandante</span><input name="participantCommander" placeholder="Tivit, Seller of Secrets" value="${escapeAttribute(participant.commander)}"></label>
+          <label><span>Arquetipo opcional</span><input name="participantArchetype" placeholder="Esper Control" value="${escapeAttribute(participant.archetype)}"></label>
+          <label class="wide"><span>Moxfield</span><input name="participantMoxfield" type="url" placeholder="https://moxfield.com/..." value="${escapeAttribute(participant.moxfield)}"></label>
+        </div>
+        <p class="participant-card-status">${participant.colors?.length ? `Colores detectados: ${colorsToText(participant.colors)}` : "Los colores e imagen se completan desde Scryfall al guardar."}</p>
+      </article>
+    `)
     .join("");
+
+  syncWinnerOptions();
 }
 
-function renderDeckList() {
+function renderTableList() {
   const data = getCurrentData();
-  const rows = data.players.flatMap((player) =>
-    player.decks.map((deck, index) => ({ player, deck, index }))
-  );
 
-  nodes.deckList.innerHTML = rows.length
-    ? rows
-        .map(
-          ({ player, deck, index }) => `
-            <button class="admin-list-row ${player.id === selectedDeckPlayerId && String(index) === String(selectedDeckIndex) ? "is-selected" : ""}" type="button" data-deck-player-id="${player.id}" data-deck-index="${index}">
+  nodes.tableList.innerHTML = tables(data).length
+    ? tables(data)
+        .map((table) => {
+          const winner = table.participants.find((participant) => participant.id === table.winnerId);
+          return `
+            <button class="admin-list-row ${table.id === selectedTableId ? "is-selected" : ""}" type="button" data-table-id="${table.id}">
               <span>
-                <strong>${deck.commander}</strong>
-                <small>${player.name} | ${deck.archetype || "Commander"} | ${colorsToText(deck.colors)}</small>
+                <strong>${table.title}</strong>
+                <small>${table.participants.length} jugadores | Ganador: ${winner?.name || "Sin ganador"}</small>
               </span>
-              <span>${deck.wins || 0}-${deck.losses || 0}</span>
+              <span>${table.date || ""}</span>
             </button>
-          `
-        )
+          `;
+        })
         .join("")
-    : '<p class="empty-state">Aún no hay decks registrados.</p>';
+    : '<p class="empty-state">Aún no hay mesas guardadas desde este editor.</p>';
 }
 
-function renderDeckForm() {
+function renderTableForm() {
   const data = getCurrentData();
-  const player = playerById(data, selectedDeckPlayerId);
-  const deck = player?.decks?.[Number(selectedDeckIndex)];
-  const form = nodes.deckForm;
-  const fields = form.elements;
+  const table = tables(data).find((item) => item.id === selectedTableId);
+  const fields = nodes.tableForm.elements;
 
-  nodes.deckFormTitle.textContent = deck ? "Editar deck" : "Nuevo deck";
-  nodes.deleteDeck.hidden = !deck;
-  renderPlayerOptions();
+  nodes.tableFormTitle.textContent = table ? "Editar mesa" : "Nueva mesa";
+  nodes.deleteTable.hidden = !table;
+  fields.id.value = table?.id || "";
+  fields.title.value = table?.title || "";
+  fields.videoUrl.value = table?.videoUrl || "";
+  fields.date.value = table?.date || "";
 
-  fields.playerId.value = player?.id || "";
-  fields.deckIndex.value = deck ? selectedDeckIndex : "";
-  fields.playerSelect.value = player?.id || data.players[0]?.id || "";
-  fields.commander.value = deck?.commander || "";
-  fields.archetype.value = deck?.archetype || "";
-  fields.colors.value = colorsToText(deck?.colors) || "";
-  fields.wins.value = deck?.wins ?? 0;
-  fields.losses.value = deck?.losses ?? 0;
-  fields.moxfield.value = deck?.moxfield || "";
-  fields.videoUrl.value = deck?.videoUrl || "";
+  hydrateDraftParticipants(table);
+  renderParticipantRows();
+  syncWinnerOptions(table?.winnerId || "");
 }
 
 function renderAdmin() {
   renderSettingsForm();
-  renderPlayerList();
-  renderPlayerForm();
-  renderDeckList();
-  renderDeckForm();
+  renderTableList();
+  renderTableForm();
   fillJsonEditor();
 }
 
@@ -290,10 +385,9 @@ async function loadRemoteData() {
 
   const remoteData = snapshot.data()?.data;
   if (remoteData?.players) {
-    setCurrentData(remoteData);
-  } else {
-    renderAdmin();
+    window.setLeaderboardData(remoteData);
   }
+  renderAdmin();
 }
 
 function setAdminVisibility(user) {
@@ -306,7 +400,7 @@ function setAdminVisibility(user) {
   if (isAdmin) {
     nodes.status.textContent = `Admin | ${user.email}`;
     renderAdmin();
-    setMessage("Sesión autorizada. Puedes editar desde formularios.", "success");
+    setMessage("Sesión autorizada. Puedes editar mesas desde formularios.", "success");
   } else if (user) {
     setMessage("Esta cuenta no tiene permisos de edición.", "error");
   }
@@ -406,152 +500,124 @@ nodes.settingsForm.addEventListener("submit", async (event) => {
   await saveData(data, "Resumen actualizado.");
 });
 
-nodes.newPlayer.addEventListener("click", () => {
-  selectedPlayerId = "";
-  renderPlayerForm();
+nodes.newTable.addEventListener("click", () => {
+  selectedTableId = "";
+  renderTableForm();
 });
 
-nodes.playerList.addEventListener("click", (event) => {
-  const row = event.target.closest("[data-player-id]");
+nodes.tableList.addEventListener("click", (event) => {
+  const row = event.target.closest("[data-table-id]");
   if (!row) return;
 
-  selectedPlayerId = row.dataset.playerId;
+  selectedTableId = row.dataset.tableId;
   renderAdmin();
 });
 
-nodes.playerForm.addEventListener("submit", async (event) => {
+nodes.addParticipant.addEventListener("click", () => {
+  draftParticipants = readParticipantRows();
+  draftParticipants.push(emptyParticipant());
+  renderParticipantRows();
+});
+
+nodes.participantList.addEventListener("input", () => {
+  syncWinnerOptions();
+});
+
+nodes.participantList.addEventListener("click", (event) => {
+  const button = event.target.closest(".remove-participant");
+  if (!button) return;
+
+  const row = event.target.closest("[data-participant-index]");
+  const index = Number(row.dataset.participantIndex);
+  draftParticipants = readParticipantRows().filter((_, itemIndex) => itemIndex !== index);
+  if (!draftParticipants.length) draftParticipants.push(emptyParticipant());
+  renderParticipantRows();
+});
+
+nodes.tableForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   const data = getCurrentData();
-  const fields = nodes.playerForm.elements;
-  const name = fields.name.value.trim();
+  const fields = nodes.tableForm.elements;
+  const existingTable = tables(data).find((table) => table.id === fields.id.value);
+  const allParticipants = readParticipantRows();
+  let participants = allParticipants.filter((participant) => participant.name && participant.commander);
 
-  if (!name) {
-    setMessage("El nombre del jugador es obligatorio.", "error");
+  if (allParticipants.some((participant) => (participant.name && !participant.commander) || (!participant.name && participant.commander))) {
+    setMessage("Cada jugador necesita nombre y comandante. Los renglones vacíos sí se pueden dejar vacíos.", "error");
     return;
   }
 
-  let id = fields.id.value || slugify(name);
-  const duplicate = data.players.find((player) => player.id === id && player.id !== fields.id.value);
-  if (duplicate) id = `${id}-${Date.now()}`;
-
-  let player = playerById(data, fields.id.value);
-  if (!player) {
-    player = { id, decks: [], wins: 0, losses: 0, appearances: 0, colors: [] };
-    data.players.push(player);
-  }
-
-  player.id = id;
-  player.name = name;
-  player.handle = fields.handle.value.trim();
-  player.role = fields.role.value;
-  player.latestAppearance = fields.latestAppearance.value.trim();
-  player.signature = fields.signature.value.trim();
-
-  selectedPlayerId = player.id;
-  await saveData(data, "Jugador guardado.");
-});
-
-nodes.deletePlayer.addEventListener("click", async () => {
-  if (!selectedPlayerId) return;
-  const data = getCurrentData();
-  const player = playerById(data, selectedPlayerId);
-  if (!player) return;
-
-  const confirmed = window.confirm(`¿Eliminar a ${player.name} y todos sus decks?`);
-  if (!confirmed) return;
-
-  data.players = data.players.filter((item) => item.id !== selectedPlayerId);
-  selectedPlayerId = "";
-  selectedDeckPlayerId = "";
-  selectedDeckIndex = "";
-  await saveData(data, "Jugador eliminado.");
-});
-
-nodes.newDeck.addEventListener("click", () => {
-  selectedDeckPlayerId = "";
-  selectedDeckIndex = "";
-  renderDeckForm();
-});
-
-nodes.deckList.addEventListener("click", (event) => {
-  const row = event.target.closest("[data-deck-player-id]");
-  if (!row) return;
-
-  selectedDeckPlayerId = row.dataset.deckPlayerId;
-  selectedDeckIndex = row.dataset.deckIndex;
-  renderAdmin();
-});
-
-nodes.deckForm.addEventListener("submit", async (event) => {
-  event.preventDefault();
-  const data = getCurrentData();
-  const fields = nodes.deckForm.elements;
-  const player = playerById(data, fields.playerSelect.value);
-  const colors = normalizeColors(fields.colors.value);
-
-  if (!player) {
-    setMessage("Selecciona un jugador válido.", "error");
+  if (!participants.length) {
+    setMessage("Agrega al menos un jugador con comandante.", "error");
     return;
   }
 
-  if (!fields.commander.value.trim() || !colors.length) {
-    setMessage("Comandante y colores son obligatorios.", "error");
+  if (!fields.winner.value) {
+    setMessage("Selecciona quién ganó la mesa.", "error");
     return;
   }
 
-  const payload = {
-    commander: fields.commander.value.trim(),
-    archetype: fields.archetype.value.trim() || "Commander",
-    colors,
-    wins: Number(fields.wins.value || 0),
-    losses: Number(fields.losses.value || 0),
-    moxfield: fields.moxfield.value.trim() || "https://moxfield.com/users/LosMaleducadosDelMagic",
-    videoUrl: fields.videoUrl.value.trim() || data.socials[0].url,
-    cardImage: "",
-    cardUrl: ""
+  if (!participants.some((participant) => participant.id === fields.winner.value)) {
+    setMessage("El ganador debe ser uno de los jugadores con comandante.", "error");
+    return;
+  }
+
+  setMessage("Buscando comandantes en Scryfall...", "info");
+  participants = await Promise.all(participants.map(async (participant) => {
+    const card = await fetchCommanderCard(participant.commander);
+    return {
+      ...participant,
+      archetype: participant.archetype || "Commander",
+      colors: card.colors.length ? card.colors : participant.colors || [],
+      cardImage: card.image || participant.cardImage || "",
+      cardUrl: card.url || participant.cardUrl || ""
+    };
+  }));
+
+  const nextTable = {
+    id: fields.id.value || `mesa-${Date.now()}`,
+    title: fields.title.value.trim(),
+    date: fields.date.value.trim(),
+    videoUrl: fields.videoUrl.value.trim(),
+    winnerId: fields.winner.value,
+    participants
   };
 
-  const editingSamePlayer = fields.playerId.value === player.id && fields.deckIndex.value !== "";
-  if (editingSamePlayer) {
-    payload.cardImage = player.decks[Number(fields.deckIndex.value)]?.cardImage || "";
-    payload.cardUrl = player.decks[Number(fields.deckIndex.value)]?.cardUrl || "";
-    if (!payload.cardImage || !payload.cardUrl || player.decks[Number(fields.deckIndex.value)]?.commander !== payload.commander) {
-      const card = await fetchCommanderCard(payload.commander);
-      payload.cardImage = card.image;
-      payload.cardUrl = card.url;
-    }
-    player.decks[Number(fields.deckIndex.value)] = payload;
-    selectedDeckIndex = fields.deckIndex.value;
+  if (existingTable) {
+    applyTableToAggregates(data, existingTable, -1);
+    data.tables = tables(data).map((table) => table.id === existingTable.id ? nextTable : table);
   } else {
-    const card = await fetchCommanderCard(payload.commander);
-    payload.cardImage = card.image;
-    payload.cardUrl = card.url;
-    if (fields.playerId.value && fields.deckIndex.value !== "") {
-      const oldPlayer = playerById(data, fields.playerId.value);
-      oldPlayer?.decks.splice(Number(fields.deckIndex.value), 1);
-    }
-    player.decks.push(payload);
-    selectedDeckIndex = String(player.decks.length - 1);
+    tables(data).unshift(nextTable);
   }
 
-  selectedDeckPlayerId = player.id;
-  await saveData(data, "Deck guardado.");
+  applyTableToAggregates(data, nextTable, 1);
+
+  const winner = participants.find((participant) => participant.id === nextTable.winnerId);
+  data.latestTable = {
+    ...(data.latestTable || {}),
+    title: nextTable.title,
+    date: nextTable.date || "Último estreno",
+    winner: winner?.name || "",
+    deck: winner?.commander || "",
+    videoUrl: nextTable.videoUrl
+  };
+
+  selectedTableId = nextTable.id;
+  await saveData(data, "Mesa guardada.");
 });
 
-nodes.deleteDeck.addEventListener("click", async () => {
-  if (!selectedDeckPlayerId || selectedDeckIndex === "") return;
+nodes.deleteTable.addEventListener("click", async () => {
   const data = getCurrentData();
-  const player = playerById(data, selectedDeckPlayerId);
-  const deck = player?.decks?.[Number(selectedDeckIndex)];
-  if (!deck) return;
+  const table = tables(data).find((item) => item.id === selectedTableId);
+  if (!table) return;
 
-  const confirmed = window.confirm(`¿Eliminar ${deck.commander}?`);
+  const confirmed = window.confirm(`¿Borrar la mesa "${table.title}" y restar sus resultados del ranking?`);
   if (!confirmed) return;
 
-  player.decks.splice(Number(selectedDeckIndex), 1);
-  selectedDeckPlayerId = "";
-  selectedDeckIndex = "";
-  await saveData(data, "Deck eliminado.");
+  applyTableToAggregates(data, table, -1);
+  data.tables = tables(data).filter((item) => item.id !== selectedTableId);
+  selectedTableId = "";
+  await saveData(data, "Mesa borrada.");
 });
 
 nodes.loadJson.addEventListener("click", fillJsonEditor);

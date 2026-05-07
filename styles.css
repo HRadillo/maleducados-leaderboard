@@ -1106,6 +1106,15 @@ tbody tr:hover {
   margin-top: 18px;
 }
 
+.table-manager-card {
+  align-self: start;
+}
+
+.table-form-card {
+  display: grid;
+  gap: 14px;
+}
+
 .editor-card {
   border: 1px solid var(--line);
   border-radius: var(--radius);
@@ -1202,6 +1211,61 @@ tbody tr:hover {
 
 .deck-admin-list .admin-list-row {
   border-color: rgba(145, 167, 255, 0.16);
+}
+
+.participant-head {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 14px;
+  margin-top: 4px;
+}
+
+.participant-head h4 {
+  margin: 0;
+  font-size: 17px;
+}
+
+.participant-head p {
+  margin: 4px 0 0;
+}
+
+.participant-list {
+  display: grid;
+  gap: 12px;
+}
+
+.participant-row {
+  display: grid;
+  gap: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: var(--radius);
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.045), transparent 56%),
+    rgba(0, 0, 0, 0.22);
+  padding: 14px;
+}
+
+.participant-row-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.participant-row-head strong {
+  font-size: 14px;
+}
+
+.participant-row-head .admin-button {
+  min-height: 34px;
+}
+
+.participant-card-status {
+  margin: -2px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
 }
 
 .quick-entry {
@@ -1472,7 +1536,9 @@ tbody tr:hover {
   .admin-locked,
   .editor-card-head,
   .editor-actions-inline,
-  .admin-actions {
+  .admin-actions,
+  .participant-head,
+  .participant-row-head {
     align-items: stretch;
     flex-direction: column;
   }

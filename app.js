@@ -64,6 +64,7 @@
     totalGames: document.querySelector("#totalGames"),
     guestCount: document.querySelector("#guestCount"),
     subscriberCount: document.querySelector("#subscriberCount"),
+    subscriberStatus: document.querySelector("#subscriberStatus"),
     subscribeLink: document.querySelector("#subscribeLink"),
     hostGuestScore: document.querySelector("#hostGuestScore"),
     hostGuestRate: document.querySelector("#hostGuestRate"),
@@ -128,6 +129,13 @@
     }
 
     return value || "N/D";
+  }
+
+  function formatUpdateTime(date = new Date()) {
+    return new Intl.DateTimeFormat("es-MX", {
+      hour: "2-digit",
+      minute: "2-digit"
+    }).format(date);
   }
 
   function rateColor(rate) {
@@ -365,6 +373,7 @@
     elements.totalGames.textContent = totalGames;
     elements.guestCount.textContent = guestCount;
     elements.subscriberCount.textContent = formatNumber(channelStats.subscribers);
+    elements.subscriberStatus.textContent = "Actualizando...";
     elements.subscribeLink.href = channelStats.subscribeUrl || data.socials[0].url;
     elements.hostGuestScore.textContent = `${hostWins}-${guestWins}`;
     elements.hostGuestRate.textContent = `Hosts ${hostRate}% | Invitados ${guestRate}%`;
@@ -379,23 +388,43 @@
   function loadSubscriberCount() {
     const channelStats = data.channelStats || {};
     if (subscriberLoadStarted) return;
-    if (!channelStats.youtubeApiKey || !channelStats.youtubeChannelId) return;
+    if (!channelStats.youtubeApiKey || !channelStats.youtubeChannelId) {
+      elements.subscriberStatus.textContent = "Dato manual";
+      return;
+    }
     subscriberLoadStarted = true;
+    elements.subscriberStatus.textContent = "Consultando YouTube...";
 
     const url = new URL("https://www.googleapis.com/youtube/v3/channels");
     url.searchParams.set("part", "statistics");
     url.searchParams.set("id", channelStats.youtubeChannelId);
     url.searchParams.set("key", channelStats.youtubeApiKey);
+    url.searchParams.set("_", Date.now().toString());
 
-    fetch(url)
+    fetch(url, {
+      cache: "no-store",
+      headers: {
+        "Cache-Control": "no-cache"
+      }
+    })
       .then((response) => (response.ok ? response.json() : Promise.reject(response)))
       .then((payload) => {
-        const count = payload.items?.[0]?.statistics?.subscriberCount;
-        elements.subscriberCount.textContent = count ? formatNumber(Number(count)) : "Oculto";
+        const stats = payload.items?.[0]?.statistics;
+        const count = stats?.subscriberCount;
+
+        if (stats?.hiddenSubscriberCount || !count) {
+          elements.subscriberCount.textContent = "Oculto";
+          elements.subscriberStatus.textContent = "YouTube no publica el conteo";
+          return;
+        }
+
+        elements.subscriberCount.textContent = formatNumber(Number(count));
+        elements.subscriberStatus.textContent = `YouTube ${formatUpdateTime()} | redondeado`;
       })
       .catch((error) => {
         console.warn("No se pudo cargar el conteo de suscriptores.", error);
         elements.subscriberCount.textContent = formatNumber(channelStats.subscribers);
+        elements.subscriberStatus.textContent = "No se pudo actualizar";
       });
   }
 

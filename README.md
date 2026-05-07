@@ -51,12 +51,12 @@ losmaleducadosdelmagic@gmail.com
 
 Desde el modo editor se puede:
 
-- Agregar jugadores o invitados.
-- Editar datos de jugadores existentes.
-- Eliminar jugadores.
-- Agregar decks.
-- Editar wins/losses por deck.
-- Agregar links de Moxfield y YouTube.
+- Agregar mesas completas con nombre y link de YouTube.
+- Agregar cualquier cantidad de jugadores por mesa.
+- Registrar comandante, username opcional y link de Moxfield por jugador.
+- Seleccionar quién ganó la mesa.
+- Editar o borrar mesas guardadas desde el editor.
+- Completar automáticamente colores, imagen y link de carta usando Scryfall.
 - Actualizar la última mesa.
 - Actualizar datos generales del canal.
 

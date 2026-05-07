@@ -117,6 +117,7 @@
           <article class="metric">
             <span>Suscriptores</span>
             <strong id="subscriberCount">-</strong>
+            <small id="subscriberStatus">Actualizando...</small>
             <a id="subscribeLink" href="https://www.youtube.com/@losmaleducadosdelmagic?sub_confirmation=1" target="_blank" rel="noreferrer">Suscribirse</a>
           </article>
           <article class="metric rivalry-metric">
@@ -240,7 +241,7 @@
           <div class="admin-locked" id="adminLocked">
             <div>
               <span class="section-kicker">Admin</span>
-              <h2>Modo editor</h2>
+              <h2>Modo Editor</h2>
               <p>Inicia sesión con la cuenta autorizada para agregar invitados, decks y links de partidas.</p>
             </div>
             <button id="adminLogin" class="admin-button" type="button">Entrar con Google</button>
@@ -276,79 +277,46 @@
                 </div>
               </form>
 
-              <section class="editor-card">
+              <section class="editor-card table-manager-card">
                 <div class="editor-card-head">
                   <div>
-                    <h3>Jugadores e invitados</h3>
-                    <p>Agrega, edita o elimina hosts e invitados.</p>
+                    <h3>Mesas</h3>
+                    <p>Agrega, modifica o borra partidas completas desde una interfaz sin código.</p>
                   </div>
-                  <button id="newPlayer" class="admin-button secondary" type="button">Nuevo jugador</button>
+                  <button id="newTable" class="admin-button secondary" type="button">Nueva mesa</button>
                 </div>
-                <div id="playerList" class="admin-list"></div>
+                <div id="tableList" class="admin-list table-list"></div>
               </section>
 
-              <form id="playerForm" class="editor-card">
+              <form id="tableForm" class="editor-card table-form-card">
                 <div class="editor-card-head">
                   <div>
-                    <h3 id="playerFormTitle">Nuevo jugador</h3>
-                    <p>El record se calcula automáticamente con sus decks.</p>
+                    <h3 id="tableFormTitle">Nueva mesa</h3>
+                    <p>Elige al ganador y el sitio sumará wins/losses automáticamente.</p>
                   </div>
                   <div class="editor-actions-inline">
-                    <button id="deletePlayer" class="admin-button danger" type="button">Eliminar</button>
-                    <button class="admin-button" type="submit">Guardar jugador</button>
+                    <button id="deleteTable" class="admin-button danger" type="button">Borrar mesa</button>
+                    <button class="admin-button" type="submit">Guardar mesa</button>
                   </div>
                 </div>
                 <input name="id" type="hidden">
                 <div class="editor-fields two-col">
-                  <label><span>Nombre</span><input name="name" required placeholder="Nombre completo"></label>
-                  <label><span>Handle</span><input name="handle" placeholder="@usuario"></label>
+                  <label><span>Mesa</span><input name="title" required placeholder="Nombre de la mesa/video"></label>
+                  <label><span>Link</span><input name="videoUrl" type="url" required placeholder="https://youtube.com/..."></label>
+                  <label><span>Fecha / etiqueta</span><input name="date" placeholder="Último estreno"></label>
                   <label>
-                    <span>Rol</span>
-                    <select name="role">
-                      <option value="Invitado">Invitado</option>
-                      <option value="Invitada">Invitada</option>
-                      <option value="Host">Host</option>
-                    </select>
+                    <span>Ganador</span>
+                    <select name="winner" required></select>
                   </label>
-                  <label><span>Última aparición</span><input name="latestAppearance" placeholder="Nombre de la mesa"></label>
-                  <label class="wide"><span>Descripción / estilo</span><input name="signature" placeholder="Tokens, política, combos..."></label>
                 </div>
-              </form>
-
-              <section class="editor-card">
-                <div class="editor-card-head">
+                <div class="participant-head">
                   <div>
-                    <h3>Decks jugados</h3>
-                    <p>Cada badge del sitio usa el formato wins-losses de aquí.</p>
+                    <h4>Jugadores</h4>
+                    <p>Agrega cualquier cantidad de jugadores para esta mesa.</p>
                   </div>
-                  <button id="newDeck" class="admin-button secondary" type="button">Nuevo deck</button>
+                  <button id="addParticipant" class="admin-button secondary" type="button">Agregar Jugador</button>
                 </div>
-                <div id="deckList" class="admin-list deck-admin-list"></div>
-              </section>
-
-              <form id="deckForm" class="editor-card">
-                <div class="editor-card-head">
-                  <div>
-                    <h3 id="deckFormTitle">Nuevo deck</h3>
-                    <p>Links, colores y resultados del deck.</p>
-                  </div>
-                  <div class="editor-actions-inline">
-                    <button id="deleteDeck" class="admin-button danger" type="button">Eliminar</button>
-                    <button class="admin-button" type="submit">Guardar deck</button>
-                  </div>
-                </div>
-                <input name="playerId" type="hidden">
-                <input name="deckIndex" type="hidden">
-                <div class="editor-fields two-col">
-                  <label><span>Jugador</span><select name="playerSelect" required></select></label>
-                  <label><span>Comandante</span><input name="commander" required placeholder="Commander"></label>
-                  <label><span>Arquetipo</span><input name="archetype" placeholder="Ej. Esper Control"></label>
-                  <label><span>Colores</span><input name="colors" required placeholder="WUB, RG, WUBRG"></label>
-                  <label><span>Wins</span><input name="wins" type="number" min="0" value="0"></label>
-                  <label><span>Losses</span><input name="losses" type="number" min="0" value="0"></label>
-                  <label class="wide"><span>Moxfield</span><input name="moxfield" type="url" placeholder="https://moxfield.com/..."></label>
-                  <label class="wide"><span>YouTube</span><input name="videoUrl" type="url" placeholder="https://youtube.com/..."></label>
-                </div>
+                <div id="participantList" class="participant-list"></div>
               </form>
             </div>
 
