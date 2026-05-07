@@ -25,6 +25,7 @@ let firebaseApi = null;
 let currentUser = null;
 let selectedTableId = "";
 let draftParticipants = [];
+let editingFreshTable = false;
 
 nodes.login.disabled = true;
 nodes.login.textContent = "Cargando Google...";
@@ -81,6 +82,13 @@ function colorsToText(colors) {
   return allowedColors.filter((color) => colors?.includes(color)).join("");
 }
 
+function formatDateInput(value = "") {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : "";
+  return date.toISOString().slice(0, 10);
+}
+
 function escapeAttribute(value = "") {
   return String(value)
     .replace(/&/g, "&amp;")
@@ -120,12 +128,106 @@ async function fetchCommanderCard(commander) {
   return scryfallCardFromPayload(await response.json());
 }
 
+function extractMoxfieldDeckId(url) {
+  try {
+    const parsed = new URL(url);
+    const match = parsed.pathname.match(/\/decks\/([^/?#]+)/);
+    return match?.[1] || "";
+  } catch {
+    return "";
+  }
+}
+
+function commanderFromMoxfieldPayload(payload) {
+  const commanderEntries = [
+    payload.commanders,
+    payload.commander,
+    payload.main,
+    payload.boards?.commanders,
+    payload.boards?.commandzone,
+    payload.boards?.mainboard
+  ];
+
+  for (const entry of commanderEntries) {
+    if (!entry) continue;
+    const cards = Array.isArray(entry) ? entry : Object.values(entry);
+    const commander = cards
+      .map((item) => item.card || item)
+      .find((card) => card?.name && (card.type_line || card.type || "").toLowerCase().includes("legendary"));
+    if (commander?.name) return commander.name;
+  }
+
+  return payload.commanderName || payload.main?.name || "";
+}
+
+async function fetchMoxfieldDeck(moxfieldUrl) {
+  const deckId = extractMoxfieldDeckId(moxfieldUrl);
+  if (!deckId) return null;
+
+  const response = await fetch(`https://api2.moxfield.com/v2/decks/all/${deckId}`, {
+    cache: "no-store"
+  });
+  if (!response.ok) return null;
+
+  const payload = await response.json();
+  return {
+    commander: commanderFromMoxfieldPayload(payload),
+    name: payload.name || "",
+    archetype: payload.format || "Commander"
+  };
+}
+
+function extractYouTubeVideoId(url) {
+  try {
+    const parsed = new URL(url);
+    if (parsed.hostname.includes("youtu.be")) return parsed.pathname.split("/").filter(Boolean)[0] || "";
+    if (parsed.searchParams.get("v")) return parsed.searchParams.get("v");
+    const shorts = parsed.pathname.match(/\/shorts\/([^/?#]+)/);
+    if (shorts) return shorts[1];
+    const embed = parsed.pathname.match(/\/embed\/([^/?#]+)/);
+    if (embed) return embed[1];
+    return "";
+  } catch {
+    return "";
+  }
+}
+
+async function fetchYouTubeVideo(videoUrl) {
+  const data = getCurrentData();
+  const apiKey = data.channelStats?.youtubeApiKey;
+  const videoId = extractYouTubeVideoId(videoUrl);
+  if (!apiKey || !videoId) return null;
+
+  const url = new URL("https://www.googleapis.com/youtube/v3/videos");
+  url.searchParams.set("part", "snippet");
+  url.searchParams.set("id", videoId);
+  url.searchParams.set("key", apiKey);
+  url.searchParams.set("_", Date.now().toString());
+
+  const response = await fetch(url, { cache: "no-store" });
+  if (!response.ok) return null;
+
+  const snippet = (await response.json()).items?.[0]?.snippet;
+  if (!snippet) return null;
+
+  return {
+    title: snippet.title || "",
+    publishedAt: formatDateInput(snippet.publishedAt)
+  };
+}
+
 function playerById(data, playerId) {
   return data.players.find((player) => player.id === playerId);
 }
 
 function findPlayerByName(data, name) {
   return data.players.find((player) => player.name.trim().toLowerCase() === name.trim().toLowerCase());
+}
+
+function playerSuggestions() {
+  return getCurrentData().players
+    .map((player) => `<option value="${escapeAttribute(player.name)}"></option>`)
+    .join("");
 }
 
 function ensurePlayer(data, participant) {
@@ -227,17 +329,15 @@ function applyTableToAggregates(data, table, direction = 1) {
 function renderSettingsForm() {
   const data = getCurrentData();
   const latestTable = data.latestTable || {};
-  const stats = data.channelStats || {};
   const fields = nodes.settingsForm.elements;
 
   fields.season.value = data.season || "";
   fields.lastUpdated.value = data.lastUpdated || "";
   fields.latestTitle.value = latestTable.title || "";
-  fields.latestDate.value = latestTable.date || "";
+  fields.latestDate.value = formatDateInput(latestTable.date);
   fields.latestWinner.value = latestTable.winner || "";
   fields.latestDeck.value = latestTable.deck || "";
   fields.latestVideo.value = latestTable.videoUrl || "";
-  fields.subscribers.value = stats.subscribers || "";
 }
 
 function tables(data) {
@@ -255,7 +355,8 @@ function emptyParticipant() {
     moxfield: "",
     colors: [],
     cardImage: "",
-    cardUrl: ""
+    cardUrl: "",
+    collapsed: false
   };
 }
 
@@ -268,6 +369,7 @@ function hydrateDraftParticipants(table) {
 function readParticipantRows() {
   return [...nodes.participantList.querySelectorAll(".participant-row")].map((row, index) => ({
     ...(draftParticipants[index] || emptyParticipant()),
+    collapsed: !row.open,
     name: row.querySelector('[name="participantName"]').value.trim(),
     handle: row.querySelector('[name="participantHandle"]').value.trim(),
     commander: row.querySelector('[name="participantCommander"]').value.trim(),
@@ -293,24 +395,74 @@ function syncWinnerOptions(selectedWinner = "") {
 function renderParticipantRows() {
   nodes.participantList.innerHTML = draftParticipants
     .map((participant, index) => `
-      <article class="participant-row" data-participant-index="${index}">
-        <div class="participant-row-head">
-          <strong>Jugador ${index + 1}</strong>
-          <button class="admin-button danger remove-participant" type="button">Quitar</button>
-        </div>
+      <details class="participant-row" data-participant-index="${index}" ${participant.collapsed ? "" : "open"}>
+        <summary class="participant-row-head">
+          <strong>${participant.name || `Jugador ${index + 1}`}</strong>
+          <span>${participant.commander || "Sin comandante"}</span>
+        </summary>
         <div class="editor-fields two-col">
-          <label><span>Nombre</span><input name="participantName" placeholder="Nombre del jugador" value="${escapeAttribute(participant.name)}"></label>
-          <label><span>Username opcional</span><input name="participantHandle" placeholder="@usuario" value="${escapeAttribute(participant.handle)}"></label>
+          <label><span>Nombre</span><input name="participantName" list="playerSuggestions" placeholder="Nombre del jugador" value="${escapeAttribute(participant.name)}"></label>
+          <label><span>Username (opcional)</span><input name="participantHandle" placeholder="@usuario" value="${escapeAttribute(participant.handle)}"></label>
+          <label class="wide"><span>Deck conocido</span><select name="knownDeck"><option value="">Rellenar manualmente</option></select></label>
           <label><span>Comandante</span><input name="participantCommander" placeholder="Tivit, Seller of Secrets" value="${escapeAttribute(participant.commander)}"></label>
-          <label><span>Arquetipo opcional</span><input name="participantArchetype" placeholder="Esper Control" value="${escapeAttribute(participant.archetype)}"></label>
+          <label><span>Arquetipo (opcional)</span><input name="participantArchetype" placeholder="Esper Control" value="${escapeAttribute(participant.archetype)}"></label>
           <label class="wide"><span>Moxfield</span><input name="participantMoxfield" type="url" placeholder="https://moxfield.com/..." value="${escapeAttribute(participant.moxfield)}"></label>
         </div>
-        <p class="participant-card-status">${participant.colors?.length ? `Colores detectados: ${colorsToText(participant.colors)}` : "Los colores e imagen se completan desde Scryfall al guardar."}</p>
-      </article>
+        <div class="participant-row-actions">
+          <button class="admin-button secondary hydrate-commander" type="button">Actualizar comandante</button>
+          <button class="admin-button danger remove-participant" type="button">Quitar jugador</button>
+        </div>
+        <p class="participant-card-status">${participant.colors?.length ? `Colores detectados: ${colorsToText(participant.colors)}` : "Los colores e imagen se completan desde Moxfield/Scryfall."}</p>
+      </details>
     `)
     .join("");
 
+  if (!document.querySelector("#playerSuggestions")) {
+    nodes.participantList.insertAdjacentHTML("beforebegin", '<datalist id="playerSuggestions"></datalist>');
+  }
+  document.querySelector("#playerSuggestions").innerHTML = playerSuggestions();
+  [...nodes.participantList.querySelectorAll(".participant-row")].forEach(updateKnownDeckOptions);
   syncWinnerOptions();
+}
+
+function updateKnownDeckOptions(row) {
+  const player = findPlayerByName(getCurrentData(), row.querySelector('[name="participantName"]').value);
+  const select = row.querySelector('[name="knownDeck"]');
+  const current = select.value;
+  select.innerHTML = '<option value="">Rellenar manualmente</option>';
+
+  if (player) {
+    select.insertAdjacentHTML("beforeend", player.decks.map((deck, index) =>
+      `<option value="${index}">${escapeAttribute(deck.commander)} | ${escapeAttribute(deck.archetype || "Commander")}</option>`
+    ).join(""));
+    if (player.handle && !row.querySelector('[name="participantHandle"]').value) {
+      row.querySelector('[name="participantHandle"]').value = player.handle;
+    }
+  }
+
+  select.value = [...select.options].some((option) => option.value === current) ? current : "";
+}
+
+function applyKnownDeck(row) {
+  const player = findPlayerByName(getCurrentData(), row.querySelector('[name="participantName"]').value);
+  const deck = player?.decks?.[Number(row.querySelector('[name="knownDeck"]').value)];
+  if (!deck) return;
+
+  row.querySelector('[name="participantCommander"]').value = deck.commander || "";
+  row.querySelector('[name="participantArchetype"]').value = deck.archetype || "";
+  row.querySelector('[name="participantMoxfield"]').value = deck.moxfield || "";
+
+  const index = Number(row.dataset.participantIndex);
+  draftParticipants[index] = {
+    ...(draftParticipants[index] || emptyParticipant()),
+    ...readParticipantRows()[index],
+    colors: deck.colors || [],
+    cardImage: deck.cardImage || "",
+    cardUrl: deck.cardUrl || ""
+  };
+  row.querySelector(".participant-card-status").textContent = deck.colors?.length
+    ? `Colores detectados: ${colorsToText(deck.colors)}`
+    : "Deck conocido seleccionado.";
 }
 
 function renderTableList() {
@@ -341,10 +493,12 @@ function renderTableForm() {
 
   nodes.tableFormTitle.textContent = table ? "Editar mesa" : "Nueva mesa";
   nodes.deleteTable.hidden = !table;
+  nodes.tableForm.classList.toggle("is-collapsed", Boolean(table && !editingFreshTable));
+  nodes.tableForm.querySelector(".edit-table").hidden = !table || editingFreshTable;
   fields.id.value = table?.id || "";
   fields.title.value = table?.title || "";
   fields.videoUrl.value = table?.videoUrl || "";
-  fields.date.value = table?.date || "";
+  fields.date.value = formatDateInput(table?.date);
 
   hydrateDraftParticipants(table);
   renderParticipantRows();
@@ -492,16 +646,13 @@ nodes.settingsForm.addEventListener("submit", async (event) => {
     deck: fields.latestDeck.value.trim(),
     videoUrl: fields.latestVideo.value.trim()
   };
-  data.channelStats = {
-    ...(data.channelStats || {}),
-    subscribers: fields.subscribers.value.trim() || "N/D"
-  };
 
   await saveData(data, "Resumen actualizado.");
 });
 
 nodes.newTable.addEventListener("click", () => {
   selectedTableId = "";
+  editingFreshTable = true;
   renderTableForm();
 });
 
@@ -510,6 +661,7 @@ nodes.tableList.addEventListener("click", (event) => {
   if (!row) return;
 
   selectedTableId = row.dataset.tableId;
+  editingFreshTable = false;
   renderAdmin();
 });
 
@@ -523,7 +675,21 @@ nodes.participantList.addEventListener("input", () => {
   syncWinnerOptions();
 });
 
+nodes.tableForm.elements.videoUrl.addEventListener("change", async (event) => {
+  const video = await fetchYouTubeVideo(event.target.value.trim());
+  if (!video) return;
+  if (!nodes.tableForm.title.value.trim()) nodes.tableForm.title.value = video.title;
+  if (!nodes.tableForm.date.value) nodes.tableForm.date.value = video.publishedAt;
+});
+
 nodes.participantList.addEventListener("click", (event) => {
+  const editButton = event.target.closest(".edit-table");
+  if (editButton) {
+    editingFreshTable = true;
+    nodes.tableForm.classList.remove("is-collapsed");
+    return;
+  }
+
   const button = event.target.closest(".remove-participant");
   if (!button) return;
 
@@ -532,6 +698,75 @@ nodes.participantList.addEventListener("click", (event) => {
   draftParticipants = readParticipantRows().filter((_, itemIndex) => itemIndex !== index);
   if (!draftParticipants.length) draftParticipants.push(emptyParticipant());
   renderParticipantRows();
+});
+
+nodes.tableForm.addEventListener("click", (event) => {
+  const editButton = event.target.closest(".edit-table");
+  if (editButton) {
+    editingFreshTable = true;
+    nodes.tableForm.classList.remove("is-collapsed");
+    editButton.hidden = true;
+    return;
+  }
+
+  const hydrateButton = event.target.closest(".hydrate-commander");
+  if (hydrateButton) {
+    const row = event.target.closest(".participant-row");
+    const commanderField = row.querySelector('[name="participantCommander"]');
+    const commander = commanderField.value.trim();
+    if (!commander) return;
+
+    fetchCommanderCard(commander).then((card) => {
+      const index = Number(row.dataset.participantIndex);
+      draftParticipants[index] = {
+        ...(draftParticipants[index] || emptyParticipant()),
+        ...readParticipantRows()[index],
+        colors: card.colors,
+        cardImage: card.image,
+        cardUrl: card.url
+      };
+      row.querySelector(".participant-card-status").textContent = card.colors.length
+        ? `Actualizado desde Scryfall: ${colorsToText(card.colors)}`
+        : "No encontré colores en Scryfall.";
+    });
+  }
+});
+
+nodes.participantList.addEventListener("change", async (event) => {
+  const row = event.target.closest(".participant-row");
+  if (!row) return;
+
+  if (event.target.name === "participantName") {
+    updateKnownDeckOptions(row);
+    syncWinnerOptions();
+  }
+
+  if (event.target.name === "knownDeck") {
+    applyKnownDeck(row);
+    syncWinnerOptions();
+  }
+
+  if (event.target.name === "participantMoxfield" && event.target.value.trim()) {
+    const deckInfo = await fetchMoxfieldDeck(event.target.value.trim()).catch(() => null);
+    if (deckInfo?.commander) {
+      row.querySelector('[name="participantCommander"]').value = deckInfo.commander;
+      if (!row.querySelector('[name="participantArchetype"]').value) {
+        row.querySelector('[name="participantArchetype"]').value = deckInfo.archetype;
+      }
+      const card = await fetchCommanderCard(deckInfo.commander);
+      const index = Number(row.dataset.participantIndex);
+      draftParticipants[index] = {
+        ...(draftParticipants[index] || emptyParticipant()),
+        ...readParticipantRows()[index],
+        colors: card.colors,
+        cardImage: card.image,
+        cardUrl: card.url
+      };
+      row.querySelector(".participant-card-status").textContent = card.colors.length
+        ? `Comandante desde Moxfield: ${deckInfo.commander} | ${colorsToText(card.colors)}`
+        : `Comandante desde Moxfield: ${deckInfo.commander}`;
+    }
+  }
 });
 
 nodes.tableForm.addEventListener("submit", async (event) => {
@@ -603,6 +838,7 @@ nodes.tableForm.addEventListener("submit", async (event) => {
   };
 
   selectedTableId = nextTable.id;
+  editingFreshTable = false;
   await saveData(data, "Mesa guardada.");
 });
 

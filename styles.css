@@ -1115,6 +1115,20 @@ tbody tr:hover {
   gap: 14px;
 }
 
+.table-form-card.is-collapsed {
+  gap: 0;
+}
+
+.table-form-card.is-collapsed .editor-fields,
+.table-form-card.is-collapsed .participant-head,
+.table-form-card.is-collapsed .participant-list {
+  display: none;
+}
+
+.table-form-card.is-collapsed .editor-card-head {
+  margin-bottom: 0;
+}
+
 .editor-card {
   border: 1px solid var(--line);
   border-radius: var(--radius);
@@ -1251,6 +1265,27 @@ tbody tr:hover {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.participant-row-head::-webkit-details-marker {
+  display: none;
+}
+
+.participant-row-head::before {
+  content: "⌄";
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted);
+}
+
+.participant-row:not([open]) .participant-row-head::before {
+  content: "›";
 }
 
 .participant-row-head strong {
@@ -1266,6 +1301,11 @@ tbody tr:hover {
   color: var(--muted);
   font-size: 12px;
   font-weight: 800;
+}
+
+.participant-row-actions {
+  display: flex;
+  gap: 8px;
 }
 
 .quick-entry {

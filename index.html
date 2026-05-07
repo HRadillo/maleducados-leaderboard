@@ -261,7 +261,7 @@
                 <div class="editor-card-head">
                   <div>
                     <h3>Resumen del canal</h3>
-                    <p>Datos superiores de temporada, última mesa y suscriptores.</p>
+                    <p>Datos superiores de temporada y última mesa.</p>
                   </div>
                   <button class="admin-button" type="submit">Guardar resumen</button>
                 </div>
@@ -269,11 +269,10 @@
                   <label><span>Temporada</span><input name="season" placeholder="Temporada 1"></label>
                   <label><span>Actualizado</span><input name="lastUpdated" type="date"></label>
                   <label><span>Última mesa</span><input name="latestTitle" placeholder="Nombre de la partida"></label>
-                  <label><span>Fecha / etiqueta</span><input name="latestDate" placeholder="Último estreno"></label>
+                  <label><span>Fecha / etiqueta</span><input name="latestDate" type="date"></label>
                   <label><span>Ganador</span><input name="latestWinner" placeholder="Nombre"></label>
                   <label><span>Deck ganador</span><input name="latestDeck" placeholder="Comandante"></label>
                   <label class="wide"><span>Video de última mesa</span><input name="latestVideo" type="url" placeholder="https://youtube.com/..."></label>
-                  <label class="wide"><span>Suscriptores manuales</span><input name="subscribers" placeholder="N/D o 12345"></label>
                 </div>
               </form>
 
@@ -295,6 +294,7 @@
                     <p>Elige al ganador y el sitio sumará wins/losses automáticamente.</p>
                   </div>
                   <div class="editor-actions-inline">
+                    <button class="admin-button secondary edit-table" type="button">Editar mesa</button>
                     <button id="deleteTable" class="admin-button danger" type="button">Borrar mesa</button>
                     <button class="admin-button" type="submit">Guardar mesa</button>
                   </div>
@@ -303,7 +303,7 @@
                 <div class="editor-fields two-col">
                   <label><span>Mesa</span><input name="title" required placeholder="Nombre de la mesa/video"></label>
                   <label><span>Link</span><input name="videoUrl" type="url" required placeholder="https://youtube.com/..."></label>
-                  <label><span>Fecha / etiqueta</span><input name="date" placeholder="Último estreno"></label>
+                  <label><span>Fecha</span><input name="date" type="date"></label>
                   <label>
                     <span>Ganador</span>
                     <select name="winner" required></select>
