@@ -6,7 +6,12 @@
     query: "",
     role: "all",
     color: "all",
-    sort: "score"
+    sort: "score",
+    deckQuery: "",
+    deckColors: [],
+    deckColorMode: "exact",
+    deckSort: "date",
+    sortDirection: "desc"
   };
 
   const colorNames = {
@@ -75,10 +80,12 @@
     guildLossStats: document.querySelector("#guildLossStats"),
     rows: document.querySelector("#leaderboardRows"),
     deckGrid: document.querySelector("#deckGrid"),
+    deckSearch: document.querySelector("#deckSearchInput"),
+    deckColorMode: document.querySelector("#deckColorMode"),
+    deckSort: document.querySelector("#deckSortSelect"),
     search: document.querySelector("#searchInput"),
     role: document.querySelector("#roleFilter"),
     color: document.querySelector("#colorFilter"),
-    sort: document.querySelector("#sortSelect"),
     dialog: document.querySelector("#playerDialog"),
     dialogContent: document.querySelector("#dialogContent"),
     closeDialog: document.querySelector("#closeDialog"),
@@ -200,27 +207,27 @@
     const normalized = commander?.trim().toLowerCase();
     if (!normalized) return null;
 
-    return data.players
-      .flatMap((player) => player.decks)
-      .find((deck) => deck.commander?.trim().toLowerCase() === normalized);
+    return recordedDecks().find((deck) => deck.commander?.trim().toLowerCase() === normalized) ||
+      data.players
+        .flatMap((player) => player.decks)
+        .find((deck) => deck.commander?.trim().toLowerCase() === normalized);
   }
 
-  function score(player) {
-    return player.wins * 4 + winRate(player) + player.appearances * 2;
+  function canonicalPlayerName(name = "") {
+    const normalized = name.trim().toLowerCase();
+    if (["horacio radillo", "horacio r", "horacio r."].includes(normalized)) return "Horacio R.";
+    if (["alan villegas", "alan v", "alan v."].includes(normalized)) return "Alan V.";
+    return name.trim();
   }
 
-  function allDecks(players = data.players) {
-    return players.flatMap((player) =>
-      player.decks.map((deck) => ({
-        ...deck,
-        player: player.name,
-        playerId: player.id
-      }))
-    );
+  function canonicalPlayerKey(name = "") {
+    return canonicalPlayerName(name).toLowerCase();
   }
 
   function playerRoleByName(playerName) {
-    const player = data.players.find((item) => item.name.trim().toLowerCase() === playerName.trim().toLowerCase());
+    const canonicalName = canonicalPlayerName(playerName);
+    if (canonicalName === "Horacio R." || canonicalName === "Alan V.") return "Host";
+    const player = data.players.find((item) => canonicalPlayerName(item.name).toLowerCase() === canonicalName.toLowerCase());
     return player?.role || "Invitado";
   }
 
@@ -231,7 +238,7 @@
     tableRows.forEach((table) => {
       (table.participants || []).forEach((participant) => {
         const key = [
-          participant.name?.trim().toLowerCase(),
+          canonicalPlayerKey(participant.name || ""),
           participant.commander?.trim().toLowerCase(),
           participant.moxfield || ""
         ].join("|");
@@ -246,11 +253,15 @@
           losses: 0,
           moxfield: participant.moxfield || "https://moxfield.com/users/LosMaleducadosDelMagic",
           videoUrl: table.videoUrl || data.socials[0].url,
+          tableTitle: table.title || "",
+          tableDate: table.date || "",
+          lastPlayedAt: table.date || "",
           cardImage: participant.cardImage || "",
           cardUrl: participant.cardUrl || "",
-          player: participant.name,
-          playerId: slugify(participant.name || "jugador"),
-          role: playerRoleByName(participant.name)
+          player: canonicalPlayerName(participant.name),
+          playerId: slugify(canonicalPlayerName(participant.name || "jugador")),
+          role: playerRoleByName(participant.name),
+          tables: new Set()
         };
 
         if (participant.id === table.winnerId) {
@@ -260,14 +271,56 @@
         }
 
         current.videoUrl = table.videoUrl || current.videoUrl;
+        current.tableTitle = table.title || current.tableTitle;
+        current.tableDate = table.date || current.tableDate;
+        current.lastPlayedAt = table.date || current.lastPlayedAt;
         current.colors = participant.colors?.length ? participant.colors : current.colors;
         current.cardImage = participant.cardImage || current.cardImage;
         current.cardUrl = participant.cardUrl || current.cardUrl;
+        current.tables.add(table.id || table.title);
         decks.set(key, current);
       });
     });
 
-    return [...decks.values()];
+    return [...decks.values()].map((deck) => ({
+      ...deck,
+      appearances: deck.tables.size,
+      tables: [...deck.tables]
+    }));
+  }
+
+  function recordedPlayers() {
+    const players = new Map();
+
+    recordedDecks().forEach((deck) => {
+      const current = players.get(deck.playerId) || {
+        id: deck.playerId,
+        name: deck.player,
+        handle: data.players.find((player) => canonicalPlayerName(player.name) === deck.player)?.handle || "",
+        role: deck.role,
+        signature: "",
+        wins: 0,
+        losses: 0,
+        appearances: 0,
+        colors: [],
+        decks: []
+      };
+
+      current.wins += Number(deck.wins || 0);
+      current.losses += Number(deck.losses || 0);
+      current.decks.push(deck);
+      deck.colors.forEach((color) => {
+        if (!current.colors.includes(color)) current.colors.push(color);
+      });
+      current.appearances = current.wins + current.losses;
+      players.set(deck.playerId, current);
+    });
+
+    return [...players.values()];
+  }
+
+  function score(player) {
+    return player.wins * 4 + winRate(player) + player.appearances * 2;
   }
 
   function matchingDecks(player) {
@@ -366,18 +419,22 @@
     return [...players].sort((a, b) => {
       const sorters = {
         score: score(b) - score(a),
+        player: a.name.localeCompare(b.name),
         wins: b.wins - a.wins || winRate(b) - winRate(a),
+        losses: b.losses - a.losses || a.name.localeCompare(b.name),
         winrate: winRate(b) - winRate(a) || b.wins - a.wins,
         appearances: b.appearances - a.appearances || b.wins - a.wins,
-        decks: b.decks.length - a.decks.length || b.wins - a.wins
+        decks: b.decks.length - a.decks.length || b.wins - a.wins,
+        commander: (a.decks[0]?.commander || "").localeCompare(b.decks[0]?.commander || "")
       };
 
-      return sorters[state.sort] || sorters.score;
+      const result = sorters[state.sort] || sorters.score;
+      return state.sortDirection === "asc" ? -result : result;
     });
   }
 
   function filteredPlayers() {
-    return data.players.filter((player) => {
+    return recordedPlayers().filter((player) => {
       const matchesQuery = playerSearchText(player).includes(state.query);
       const matchesRole = state.role === "all" || player.role === state.role;
       const matchesColor = state.color === "all" || matchingDecks(player).length > 0;
@@ -388,11 +445,18 @@
   function filteredDecks() {
     return recordedDecks().filter((deck) => {
       const matchesQuery =
-        !state.query ||
-        deck.player.toLowerCase().includes(state.query) ||
-        deck.commander.toLowerCase().includes(state.query);
+        !state.deckQuery ||
+        deck.player.toLowerCase().includes(state.deckQuery) ||
+        deck.commander.toLowerCase().includes(state.deckQuery) ||
+        (deck.archetype || "").toLowerCase().includes(state.deckQuery);
       const matchesRole = state.role === "all" || deck.role === state.role;
-      const matchesColor = state.color === "all" || normalizeColors(deck.colors || []) === state.color;
+      const deckColors = normalizeColors(deck.colors || []);
+      const selectedColors = state.deckColors.join("");
+      const matchesColor =
+        !state.deckColors.length ||
+        (state.deckColorMode === "exact" && deckColors === selectedColors) ||
+        (state.deckColorMode === "includes" && state.deckColors.every((color) => deckColors.includes(color))) ||
+        (state.deckColorMode === "any" && state.deckColors.some((color) => deckColors.includes(color)));
 
       return matchesQuery && matchesRole && matchesColor;
     });
@@ -408,10 +472,10 @@
   }
 
   function renderMetrics() {
-    const players = data.players;
     const tableRows = data.tables || [];
     const totalGames = tableRows.length;
-    const guestCount = players.filter((player) => player.role !== "Host").length;
+    const leaderboardPlayers = recordedPlayers();
+    const guestCount = leaderboardPlayers.filter((player) => player.role !== "Host").length;
     const hostWins = tableRows.filter((table) => {
       const winner = table.participants?.find((participant) => participant.id === table.winnerId);
       return winner && playerRoleByName(winner.name) === "Host";
@@ -498,7 +562,7 @@
   }
 
   function renderPodium() {
-    const top = rankedPlayers(data.players).slice(0, 3);
+    const top = rankedPlayers(recordedPlayers()).slice(0, 3);
 
     elements.podium.innerHTML = top
       .map(
@@ -602,7 +666,13 @@
   }
 
   function renderDeckGrid() {
-    const decks = filteredDecks().sort((a, b) => b.wins - a.wins || a.commander.localeCompare(b.commander));
+    const sorters = {
+      date: (a, b) => (b.lastPlayedAt || "").localeCompare(a.lastPlayedAt || "") || a.commander.localeCompare(b.commander),
+      name: (a, b) => a.commander.localeCompare(b.commander),
+      wins: (a, b) => b.wins - a.wins || a.commander.localeCompare(b.commander),
+      losses: (a, b) => b.losses - a.losses || a.commander.localeCompare(b.commander)
+    };
+    const decks = filteredDecks().sort(sorters[state.deckSort] || sorters.date);
 
     if (!decks.length) {
       elements.deckGrid.innerHTML = '<p class="empty-state">No hay decks registrados en mesas guardadas con esos filtros.</p>';
@@ -617,6 +687,7 @@
               <div>
                 <h3>${commanderLink(deck)}</h3>
                 <p>${deck.player} | ${deck.archetype}</p>
+                <p class="deck-meta">${deck.tableDate || "Sin fecha"} | ${deck.tableTitle || "Mesa guardada"}</p>
               </div>
               <span class="tag" style="background: ${rateColor(deckWinRate(deck))}" title="Wins-Losses">${deck.wins}-${deck.losses}</span>
             </div>
@@ -632,7 +703,7 @@
   }
 
   function showPlayer(playerId) {
-    const player = data.players.find((item) => item.id === playerId);
+    const player = recordedPlayers().find((item) => item.id === playerId);
     if (!player) return;
 
     elements.dialogContent.innerHTML = `
@@ -697,9 +768,46 @@
     render();
   });
 
-  elements.sort.addEventListener("change", (event) => {
-    state.sort = event.target.value;
-    render();
+  document.querySelectorAll(".table-sort").forEach((button) => {
+    button.addEventListener("click", () => {
+      const nextSort = button.dataset.sort;
+      if (state.sort === nextSort) {
+        state.sortDirection = state.sortDirection === "desc" ? "asc" : "desc";
+      } else {
+        state.sort = nextSort;
+        state.sortDirection = ["player", "commander"].includes(nextSort) ? "asc" : "desc";
+      }
+
+      document.querySelectorAll(".table-sort").forEach((item) => {
+        item.classList.toggle("is-active", item.dataset.sort === state.sort);
+        item.dataset.direction = item.dataset.sort === state.sort ? state.sortDirection : "";
+      });
+      renderRows();
+    });
+  });
+
+  elements.deckSearch.addEventListener("input", (event) => {
+    state.deckQuery = event.target.value.trim().toLowerCase();
+    renderDeckGrid();
+  });
+
+  document.querySelectorAll(".deck-color-filter input").forEach((input) => {
+    input.addEventListener("change", () => {
+      state.deckColors = colorOrder.filter((color) =>
+        document.querySelector(`.deck-color-filter input[value="${color}"]`)?.checked
+      );
+      renderDeckGrid();
+    });
+  });
+
+  elements.deckColorMode.addEventListener("change", (event) => {
+    state.deckColorMode = event.target.value;
+    renderDeckGrid();
+  });
+
+  elements.deckSort.addEventListener("change", (event) => {
+    state.deckSort = event.target.value;
+    renderDeckGrid();
   });
 
   document.addEventListener("click", (event) => {

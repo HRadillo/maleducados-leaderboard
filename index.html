@@ -163,29 +163,19 @@
                 <span>Color</span>
                 <select id="colorFilter"></select>
               </label>
-              <label>
-                <span>Orden</span>
-                <select id="sortSelect">
-                  <option value="score">Ranking</option>
-                  <option value="wins">Victorias</option>
-                  <option value="winrate">Win rate</option>
-                  <option value="appearances">Apariciones</option>
-                  <option value="decks">Decks</option>
-                </select>
-              </label>
             </div>
 
             <div class="table-wrap">
               <table>
                 <thead>
                   <tr>
-                    <th scope="col">Rank</th>
-                    <th scope="col">Jugador</th>
-                    <th scope="col">Wins</th>
-                    <th scope="col">Losses</th>
-                    <th scope="col">Win rate</th>
-                    <th scope="col">Decks</th>
-                    <th scope="col">Comandante</th>
+                    <th scope="col"><button class="table-sort is-active" type="button" data-sort="score">Rank</button></th>
+                    <th scope="col"><button class="table-sort" type="button" data-sort="player">Jugador</button></th>
+                    <th scope="col"><button class="table-sort" type="button" data-sort="wins">Wins</button></th>
+                    <th scope="col"><button class="table-sort" type="button" data-sort="losses">Losses</button></th>
+                    <th scope="col"><button class="table-sort" type="button" data-sort="winrate">Win rate</button></th>
+                    <th scope="col"><button class="table-sort" type="button" data-sort="decks">Decks</button></th>
+                    <th scope="col"><button class="table-sort" type="button" data-sort="commander">Comandante</button></th>
                     <th scope="col">Video</th>
                   </tr>
                 </thead>
@@ -206,21 +196,21 @@
             <article class="guild-panel">
               <div class="guild-panel-head">
                 <span class="section-kicker">Popularidad</span>
-                <h3>Más Jugadas</h3>
+                <h3>Más Jugados</h3>
               </div>
               <div id="guildPlayedStats" class="guild-stat-list"></div>
             </article>
             <article class="guild-panel">
               <div class="guild-panel-head">
                 <span class="section-kicker">Resultados</span>
-                <h3>Más Ganadoras</h3>
+                <h3>Más Ganadores</h3>
               </div>
               <div id="guildWinStats" class="guild-stat-list"></div>
             </article>
             <article class="guild-panel">
               <div class="guild-panel-head">
                 <span class="section-kicker">Riesgo</span>
-                <h3>Más Derrotadas</h3>
+                <h3>Más Derrotados</h3>
               </div>
               <div id="guildLossStats" class="guild-stat-list"></div>
             </article>
@@ -233,6 +223,37 @@
               <span class="section-kicker">Archivo</span>
               <h2>Decks Jugados</h2>
             </div>
+          </div>
+          <div class="deck-toolbar" aria-label="Controles de decks jugados">
+            <label class="search">
+              <span>Buscar deck</span>
+              <input id="deckSearchInput" type="search" placeholder="Comandante, jugador o arquetipo">
+            </label>
+            <fieldset class="deck-color-filter">
+              <legend>Colores</legend>
+              <label class="color-check W"><input type="checkbox" value="W"><span>W</span></label>
+              <label class="color-check U"><input type="checkbox" value="U"><span>U</span></label>
+              <label class="color-check B"><input type="checkbox" value="B"><span>B</span></label>
+              <label class="color-check R"><input type="checkbox" value="R"><span>R</span></label>
+              <label class="color-check G"><input type="checkbox" value="G"><span>G</span></label>
+            </fieldset>
+            <label>
+              <span>Regla</span>
+              <select id="deckColorMode">
+                <option value="exact">Guild exacto</option>
+                <option value="includes">Incluye colores</option>
+                <option value="any">Cualquier color</option>
+              </select>
+            </label>
+            <label>
+              <span>Orden</span>
+              <select id="deckSortSelect">
+                <option value="date">Fecha reciente</option>
+                <option value="name">Nombre A-Z</option>
+                <option value="wins">Wins</option>
+                <option value="losses">Losses</option>
+              </select>
+            </label>
           </div>
           <div id="deckGrid" class="deck-grid"></div>
         </section>

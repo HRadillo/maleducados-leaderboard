@@ -597,12 +597,15 @@ h2 {
 .guild-stats-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: start;
   gap: 14px;
 }
 
 .guild-panel {
   display: grid;
   gap: 16px;
+  align-content: start;
+  align-self: start;
   padding: 18px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
@@ -619,6 +622,7 @@ h2 {
 
 .guild-stat-list {
   display: grid;
+  align-content: start;
   gap: 10px;
 }
 
@@ -756,6 +760,32 @@ th {
   text-transform: uppercase;
 }
 
+.table-sort {
+  border: 0;
+  color: inherit;
+  background: transparent;
+  padding: 0;
+  font: inherit;
+  font-weight: 900;
+  text-align: left;
+  text-transform: inherit;
+  cursor: pointer;
+}
+
+.table-sort:hover,
+.table-sort.is-active {
+  color: var(--text);
+}
+
+.table-sort.is-active::after {
+  content: " ↓";
+  color: var(--green);
+}
+
+.table-sort.is-active[data-direction="asc"]::after {
+  content: " ↑";
+}
+
 tbody tr {
   cursor: default;
 }
@@ -882,6 +912,69 @@ tbody tr:hover {
   gap: 14px;
 }
 
+.deck-toolbar {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(240px, auto) minmax(150px, 0.45fr) minmax(150px, 0.45fr);
+  gap: 12px;
+  margin-bottom: 14px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.deck-color-filter {
+  display: flex;
+  align-items: end;
+  gap: 8px;
+  min-width: 0;
+  margin: 0;
+  border: 0;
+  padding: 0;
+}
+
+.deck-color-filter legend {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+
+.color-check {
+  display: block;
+}
+
+.color-check input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.color-check span {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 42px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.035);
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.color-check input:checked + span {
+  border-color: var(--line-strong);
+  color: #050608;
+}
+
+.color-check.W input:checked + span { background: #e7e2c6; }
+.color-check.U input:checked + span { background: #8dc8ff; }
+.color-check.B input:checked + span { color: #fff; background: #252932; }
+.color-check.R input:checked + span { background: #ff8b6b; }
+.color-check.G input:checked + span { background: #7adf9f; }
+
 .deck-card {
   display: grid;
   gap: 14px;
@@ -901,6 +994,13 @@ tbody tr:hover {
 .deck-card h3 {
   margin: 0;
   font-size: 20px;
+}
+
+.deck-meta {
+  margin-top: 5px !important;
+  color: var(--muted);
+  font-size: 12px !important;
+  font-weight: 700;
 }
 
 .tag {
@@ -1552,6 +1652,7 @@ tbody tr:hover {
   }
 
   .metric-row,
+  .deck-toolbar,
   .editor-fields.two-col,
   .quick-entry,
   .dialog-stats {
@@ -1709,6 +1810,14 @@ tbody tr:hover {
 
   .deck-grid {
     gap: 12px;
+  }
+
+  .deck-toolbar {
+    padding: 12px;
+  }
+
+  .deck-color-filter {
+    justify-content: space-between;
   }
 
   .deck-card {
