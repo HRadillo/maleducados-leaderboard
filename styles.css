@@ -624,6 +624,7 @@ h2 {
   display: grid;
   align-content: start;
   gap: 10px;
+  min-height: 0;
 }
 
 .guild-stat-card {
@@ -738,6 +739,64 @@ select:focus {
 
 .table-wrap {
   overflow-x: auto;
+}
+
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.pagination:empty {
+  display: none;
+}
+
+.pagination span {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+}
+
+.pagination button {
+  min-width: 38px;
+  min-height: 38px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: var(--radius);
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.045);
+  padding: 0 12px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.pagination button:hover:not(:disabled),
+.pagination button.is-active {
+  border-color: rgba(117, 213, 166, 0.52);
+  color: #04100b;
+  background: var(--green);
+}
+
+.pagination button:disabled {
+  cursor: not-allowed;
+  opacity: 0.42;
+}
+
+.compact-pagination {
+  border-top: 0;
+  padding: 0;
+}
+
+.compact-pagination button {
+  min-width: 32px;
+  min-height: 32px;
+  padding: 0 9px;
+  font-size: 11px;
 }
 
 table {

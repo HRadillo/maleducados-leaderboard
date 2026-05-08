@@ -11,8 +11,17 @@
     deckColors: [],
     deckColorMode: "exact",
     deckSort: "date",
-    sortDirection: "desc"
+    sortDirection: "desc",
+    rankingPage: 1,
+    deckPage: 1,
+    guildPages: {
+      played: 1,
+      wins: 1,
+      losses: 1
+    }
   };
+
+  const pageSize = 5;
 
   const colorNames = {
     W: "Blanco",
@@ -78,8 +87,13 @@
     guildPlayedStats: document.querySelector("#guildPlayedStats"),
     guildWinStats: document.querySelector("#guildWinStats"),
     guildLossStats: document.querySelector("#guildLossStats"),
+    guildPlayedPagination: document.querySelector("#guildPlayedPagination"),
+    guildWinPagination: document.querySelector("#guildWinPagination"),
+    guildLossPagination: document.querySelector("#guildLossPagination"),
     rows: document.querySelector("#leaderboardRows"),
+    rankingPagination: document.querySelector("#rankingPagination"),
     deckGrid: document.querySelector("#deckGrid"),
+    deckPagination: document.querySelector("#deckPagination"),
     deckSearch: document.querySelector("#deckSearchInput"),
     deckColorMode: document.querySelector("#deckColorMode"),
     deckSort: document.querySelector("#deckSortSelect"),
@@ -157,6 +171,41 @@
   function rateColor(rate) {
     const hue = Math.round((rate / 100) * 138);
     return `hsl(${hue}, 72%, 64%)`;
+  }
+
+  function clampPage(page, totalItems) {
+    const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+    return Math.min(Math.max(1, page), totalPages);
+  }
+
+  function pageItems(items, page) {
+    const currentPage = clampPage(page, items.length);
+    const start = (currentPage - 1) * pageSize;
+    return {
+      currentPage,
+      start,
+      totalPages: Math.max(1, Math.ceil(items.length / pageSize)),
+      items: items.slice(start, start + pageSize)
+    };
+  }
+
+  function renderPagination(container, target, totalItems, currentPage) {
+    if (!container) return;
+    const totalPages = Math.ceil(totalItems / pageSize);
+
+    if (totalPages <= 1) {
+      container.innerHTML = "";
+      return;
+    }
+
+    const pages = Array.from({ length: totalPages }, (_, index) => index + 1);
+    container.innerHTML = `
+      <button type="button" data-page-target="${target}" data-page="${Math.max(1, currentPage - 1)}" ${currentPage === 1 ? "disabled" : ""}>Anterior</button>
+      <span>${pages.map((page) => `
+        <button class="${page === currentPage ? "is-active" : ""}" type="button" data-page-target="${target}" data-page="${page}" aria-label="Página ${page}">${page}</button>
+      `).join("")}</span>
+      <button type="button" data-page-target="${target}" data-page="${Math.min(totalPages, currentPage + 1)}" ${currentPage === totalPages ? "disabled" : ""}>Siguiente</button>
+    `;
   }
 
   function commanderLink(deck) {
@@ -399,20 +448,24 @@
     }));
   }
 
-  function renderGuildStatList(items, metric, label) {
-    const visibleItems = items.filter((item) => item[metric] > 0).slice(0, 6);
-    const max = Math.max(...visibleItems.map((item) => item[metric]), 1);
+  function renderGuildStatList(items, metric, label, paginationTarget) {
+    const filteredItems = items.filter((item) => item[metric] > 0);
+    const page = pageItems(filteredItems, state.guildPages[metric] || 1);
+    const visibleItems = page.items;
+    const max = Math.max(...filteredItems.map((item) => item[metric]), 1);
+    state.guildPages[metric] = page.currentPage;
 
     if (!visibleItems.length) {
       return '<p class="empty-state">Todavía no hay datos suficientes.</p>';
     }
 
+    const pageOffset = page.start;
     return visibleItems
       .map((item, index) => {
         const width = Math.max(8, Math.round((item[metric] / max) * 100));
         return `
           <article class="guild-stat-card">
-            <div class="guild-rank">${index + 1}</div>
+            <div class="guild-rank">${pageOffset + index + 1}</div>
             <div class="guild-stat-body">
               <div class="guild-stat-topline">
                 <div>
@@ -640,10 +693,15 @@
     elements.guildPlayedStats.innerHTML = renderGuildStatList(byPlayed, "played", "partidas");
     elements.guildWinStats.innerHTML = renderGuildStatList(byWins, "wins", "wins");
     elements.guildLossStats.innerHTML = renderGuildStatList(byLosses, "losses", "losses");
+    renderPagination(elements.guildPlayedPagination, "guild-played", byPlayed.filter((item) => item.played > 0).length, state.guildPages.played);
+    renderPagination(elements.guildWinPagination, "guild-wins", byWins.filter((item) => item.wins > 0).length, state.guildPages.wins);
+    renderPagination(elements.guildLossPagination, "guild-losses", byLosses.filter((item) => item.losses > 0).length, state.guildPages.losses);
   }
 
   function renderRows() {
     const players = rankedPlayers(filteredPlayers());
+    const page = pageItems(players, state.rankingPage);
+    state.rankingPage = page.currentPage;
 
     if (!players.length) {
       elements.rows.innerHTML = `
@@ -651,17 +709,18 @@
           <td colspan="8" class="empty-state">No hay resultados con esos filtros.</td>
         </tr>
       `;
+      renderPagination(elements.rankingPagination, "ranking", 0, 1);
       return;
     }
 
-    elements.rows.innerHTML = players
+    elements.rows.innerHTML = page.items
       .map((player, index) => {
         const mainDeck = matchingDecks(player)[0] || player.decks[0];
         const rate = winRate(player);
         const color = rateColor(rate);
         return `
           <tr>
-            <td data-label="Rank"><span class="rank-pill">${index + 1}</span></td>
+            <td data-label="Rank"><span class="rank-pill">${page.start + index + 1}</span></td>
             <td>
               <div class="player-cell">
                 <span class="avatar alt-${index % 3}">${initials(player.name)}</span>
@@ -687,6 +746,7 @@
         `;
       })
       .join("");
+    renderPagination(elements.rankingPagination, "ranking", players.length, page.currentPage);
   }
 
   function renderDeckGrid() {
@@ -697,13 +757,16 @@
       losses: (a, b) => b.losses - a.losses || a.commander.localeCompare(b.commander)
     };
     const decks = filteredDecks().sort(sorters[state.deckSort] || sorters.date);
+    const page = pageItems(decks, state.deckPage);
+    state.deckPage = page.currentPage;
 
     if (!decks.length) {
       elements.deckGrid.innerHTML = '<p class="empty-state">No hay decks registrados en mesas guardadas con esos filtros.</p>';
+      renderPagination(elements.deckPagination, "decks", 0, 1);
       return;
     }
 
-    elements.deckGrid.innerHTML = decks
+    elements.deckGrid.innerHTML = page.items
       .map(
         (deck) => `
           <article class="deck-card">
@@ -724,6 +787,7 @@
         `
       )
       .join("");
+    renderPagination(elements.deckPagination, "decks", decks.length, page.currentPage);
   }
 
   function showPlayer(playerId) {
@@ -779,16 +843,19 @@
 
   elements.search.addEventListener("input", (event) => {
     state.query = event.target.value.trim().toLowerCase();
+    state.rankingPage = 1;
     render();
   });
 
   elements.role.addEventListener("change", (event) => {
     state.role = event.target.value;
+    state.rankingPage = 1;
     render();
   });
 
   elements.color.addEventListener("change", (event) => {
     state.color = event.target.value;
+    state.rankingPage = 1;
     render();
   });
 
@@ -801,6 +868,7 @@
         state.sort = nextSort;
         state.sortDirection = ["player", "commander"].includes(nextSort) ? "asc" : "desc";
       }
+      state.rankingPage = 1;
 
       document.querySelectorAll(".table-sort").forEach((item) => {
         item.classList.toggle("is-active", item.dataset.sort === state.sort);
@@ -812,6 +880,7 @@
 
   elements.deckSearch.addEventListener("input", (event) => {
     state.deckQuery = event.target.value.trim().toLowerCase();
+    state.deckPage = 1;
     renderDeckGrid();
   });
 
@@ -820,21 +889,52 @@
       state.deckColors = colorOrder.filter((color) =>
         document.querySelector(`.deck-color-filter input[value="${color}"]`)?.checked
       );
+      state.deckPage = 1;
       renderDeckGrid();
     });
   });
 
   elements.deckColorMode.addEventListener("change", (event) => {
     state.deckColorMode = event.target.value;
+    state.deckPage = 1;
     renderDeckGrid();
   });
 
   elements.deckSort.addEventListener("change", (event) => {
     state.deckSort = event.target.value;
+    state.deckPage = 1;
     renderDeckGrid();
   });
 
   document.addEventListener("click", (event) => {
+    const pageButton = event.target.closest("[data-page-target]");
+    if (pageButton) {
+      const nextPage = Number(pageButton.dataset.page);
+      const target = pageButton.dataset.pageTarget;
+
+      if (target === "ranking") {
+        state.rankingPage = nextPage;
+        renderRows();
+      }
+      if (target === "decks") {
+        state.deckPage = nextPage;
+        renderDeckGrid();
+      }
+      if (target === "guild-played") {
+        state.guildPages.played = nextPage;
+        renderGuildStats();
+      }
+      if (target === "guild-wins") {
+        state.guildPages.wins = nextPage;
+        renderGuildStats();
+      }
+      if (target === "guild-losses") {
+        state.guildPages.losses = nextPage;
+        renderGuildStats();
+      }
+      return;
+    }
+
     const profileLink = event.target.closest("[data-player-id]");
     if (!profileLink) return;
 
