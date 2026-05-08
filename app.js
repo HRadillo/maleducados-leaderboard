@@ -22,6 +22,7 @@
   };
 
   const pageSize = 5;
+  const deckPageSize = 6;
 
   const colorNames = {
     W: "Blanco",
@@ -103,6 +104,9 @@
     dialog: document.querySelector("#playerDialog"),
     dialogContent: document.querySelector("#dialogContent"),
     closeDialog: document.querySelector("#closeDialog"),
+    guildDialog: document.querySelector("#guildDialog"),
+    guildDialogContent: document.querySelector("#guildDialogContent"),
+    closeGuildDialog: document.querySelector("#closeGuildDialog"),
     cardPreview: document.querySelector("#cardPreview")
   };
 
@@ -180,38 +184,55 @@
     return `hsl(${hue}, 72%, 64%)`;
   }
 
-  function clampPage(page, totalItems) {
-    const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+  function clampPage(page, totalItems, size = pageSize) {
+    const totalPages = Math.max(1, Math.ceil(totalItems / size));
     return Math.min(Math.max(1, page), totalPages);
   }
 
-  function pageItems(items, page) {
-    const currentPage = clampPage(page, items.length);
-    const start = (currentPage - 1) * pageSize;
+  function pageItems(items, page, size = pageSize) {
+    const currentPage = clampPage(page, items.length, size);
+    const start = (currentPage - 1) * size;
     return {
       currentPage,
       start,
-      totalPages: Math.max(1, Math.ceil(items.length / pageSize)),
-      items: items.slice(start, start + pageSize)
+      totalPages: Math.max(1, Math.ceil(items.length / size)),
+      items: items.slice(start, start + size)
     };
   }
 
-  function renderPagination(container, target, totalItems, currentPage) {
+  function compactPages(currentPage, totalPages) {
+    const visible = new Set([1, totalPages, currentPage, currentPage - 2, currentPage - 1, currentPage + 1, currentPage + 2]);
+    if (currentPage <= 5) [2, 3, 4, 5, 6, 7].forEach((page) => visible.add(page));
+    if (currentPage >= totalPages - 4) [totalPages - 6, totalPages - 5, totalPages - 4, totalPages - 3, totalPages - 2, totalPages - 1].forEach((page) => visible.add(page));
+    const pages = [...visible]
+      .filter((page) => page >= 1 && page <= totalPages)
+      .sort((a, b) => a - b);
+
+    return pages.reduce((items, page, index) => {
+      if (index && page - pages[index - 1] > 1) items.push("ellipsis");
+      items.push(page);
+      return items;
+    }, []);
+  }
+
+  function renderPagination(container, target, totalItems, currentPage, size = pageSize) {
     if (!container) return;
-    const totalPages = Math.ceil(totalItems / pageSize);
+    const totalPages = Math.ceil(totalItems / size);
 
     if (totalPages <= 1) {
       container.innerHTML = "";
       return;
     }
 
-    const pages = Array.from({ length: totalPages }, (_, index) => index + 1);
+    const pages = compactPages(currentPage, totalPages);
     container.innerHTML = `
-      <button type="button" data-page-target="${target}" data-page="${Math.max(1, currentPage - 1)}" ${currentPage === 1 ? "disabled" : ""}>Anterior</button>
+      <button type="button" data-page-target="${target}" data-page="${Math.max(1, currentPage - 1)}" ${currentPage === 1 ? "disabled" : ""}>← Prev</button>
       <span>${pages.map((page) => `
-        <button class="${page === currentPage ? "is-active" : ""}" type="button" data-page-target="${target}" data-page="${page}" aria-label="Página ${page}">${page}</button>
+        ${page === "ellipsis"
+          ? '<i aria-hidden="true">...</i>'
+          : `<button class="${page === currentPage ? "is-active" : ""}" type="button" data-page-target="${target}" data-page="${page}" aria-label="Página ${page}">${page}</button>`}
       `).join("")}</span>
-      <button type="button" data-page-target="${target}" data-page="${Math.min(totalPages, currentPage + 1)}" ${currentPage === totalPages ? "disabled" : ""}>Siguiente</button>
+      <button type="button" data-page-target="${target}" data-page="${Math.min(totalPages, currentPage + 1)}" ${currentPage === totalPages ? "disabled" : ""}>Next →</button>
     `;
   }
 
@@ -220,6 +241,12 @@
     const image = deck.cardImage || "";
     const label = deck.commander || "Commander";
     return `<a class="commander-link" href="${href}" target="_blank" rel="noreferrer" data-card-image="${image}" data-card-url="${deck.cardUrl || ""}" data-card-name="${label}" title="Ver carta en Scryfall">${label}</a>`;
+  }
+
+  function deckCommanderLink(deck) {
+    const image = deck.cardImage || "";
+    const label = deck.commander || "Commander";
+    return `<a class="commander-link" href="${deck.moxfield || deck.cardUrl || "#"}" target="_blank" rel="noreferrer" data-card-image="${image}" data-card-url="${deck.cardUrl || ""}" data-card-name="${label}" title="Abrir lista en Moxfield">${label}</a>`;
   }
 
   function imageFromScryfallPayload(payload) {
@@ -307,6 +334,40 @@
     const names = tableWinners(table).map((participant) => participant.name).filter(Boolean);
     if (!names.length) return "Sin ganador";
     return names.join(" y ");
+  }
+
+  function todayKey() {
+    const now = new Date();
+    const month = String(now.getMonth() + 1).padStart(2, "0");
+    const day = String(now.getDate()).padStart(2, "0");
+    return `${now.getFullYear()}-${month}-${day}`;
+  }
+
+  function latestRecordedTable() {
+    const tableRows = (data.tables || []).filter((table) => table.date);
+    if (!tableRows.length) return null;
+    const today = todayKey();
+    const playableTables = tableRows.filter((table) => table.date <= today);
+    const candidates = playableTables.length ? playableTables : tableRows;
+    return [...candidates].sort((a, b) => compareRecentDate(a.date, b.date))[0] || null;
+  }
+
+  function latestTablePayload() {
+    const latestTable = latestRecordedTable();
+    if (!latestTable) return data.latestTable || {};
+    const winners = tableWinners(latestTable);
+    const primaryWinner = winners[0];
+
+    return {
+      title: latestTable.title || "Última mesa",
+      date: latestTable.date || "Último estreno",
+      winner: tableWinnerSummary(latestTable),
+      deck: primaryWinner?.commander || "",
+      videoUrl: latestTable.videoUrl || data.socials[0].url,
+      colors: primaryWinner?.colors || [],
+      cardImage: primaryWinner?.cardImage || "",
+      cardUrl: primaryWinner?.cardUrl || ""
+    };
   }
 
   function recordedDecks() {
@@ -465,7 +526,11 @@
     }));
   }
 
-  function renderGuildStatList(items, metric, label, paginationTarget) {
+  function guildRankClass(index) {
+    return index < 3 ? `rank-${index + 1}` : "";
+  }
+
+  function renderGuildStatList(items, metric, label) {
     const filteredItems = items.filter((item) => item[metric] > 0);
     const page = pageItems(filteredItems, state.guildPages[metric] || 1);
     const visibleItems = page.items;
@@ -481,12 +546,12 @@
       .map((item, index) => {
         const width = Math.max(8, Math.round((item[metric] / max) * 100));
         return `
-          <article class="guild-stat-card">
-            <div class="guild-rank">${pageOffset + index + 1}</div>
+          <article class="guild-stat-card ${guildRankClass(pageOffset + index)}">
+            <div class="guild-rank ${guildRankClass(pageOffset + index)}">${pageOffset + index + 1}</div>
             <div class="guild-stat-body">
               <div class="guild-stat-topline">
                 <div>
-                  <h4>${guildName(item.key)}</h4>
+                  <h4><button class="guild-link" type="button" data-guild-key="${item.key}">${guildName(item.key)}</button></h4>
                   <p>${item.key === "C" ? "Sin color" : item.key} | ${item.played} partidas | WR ${item.winRate}%</p>
                 </div>
                 <strong>${item[metric]}</strong>
@@ -581,7 +646,7 @@
     const rivalryTotal = hostWins + guestWins;
     const hostRate = rivalryTotal ? Math.round((hostWins / rivalryTotal) * 100) : 0;
     const guestRate = rivalryTotal ? 100 - hostRate : 0;
-    const latestTable = data.latestTable || {};
+    const latestTable = latestTablePayload();
     const channelStats = data.channelStats || {};
 
     elements.seasonLabel.textContent = `${data.season} | Actualizado ${data.lastUpdated}`;
@@ -656,14 +721,14 @@
   }
 
   function renderPodium() {
-    const top = rankedPlayers(recordedPlayers()).slice(0, 3);
+    const top = [...recordedPlayers()].sort(leaderboardCompare).slice(0, 3);
 
     elements.podium.innerHTML = top
       .map(
         (player, index) => {
           const mainDeck = player.decks[0];
           return `
-          <article class="podium-card">
+          <article class="podium-card rank-card ${guildRankClass(index)}">
             <span class="podium-rank">${index + 1}</span>
             <div class="player-mini">
               <span class="avatar alt-${index}">${initials(player.name)}</span>
@@ -740,9 +805,10 @@
         const mainDeck = matchingDecks(player)[0] || player.decks[0];
         const rate = winRate(player);
         const color = rateColor(rate);
+        const rank = leaderboardRanks.get(player.id) || page.start + index + 1;
         return `
-          <tr>
-            <td data-label="Rank"><span class="rank-pill">${leaderboardRanks.get(player.id) || page.start + index + 1}</span></td>
+          <tr class="rank-row ${guildRankClass(rank - 1)}">
+            <td data-label="Rank"><span class="rank-pill">${rank}</span></td>
             <td>
               <div class="player-cell">
                 <span class="avatar alt-${index % 3}">${initials(player.name)}</span>
@@ -779,12 +845,12 @@
       losses: (a, b) => b.losses - a.losses || a.commander.localeCompare(b.commander)
     };
     const decks = filteredDecks().sort(sorters[state.deckSort] || sorters.date);
-    const page = pageItems(decks, state.deckPage);
+    const page = pageItems(decks, state.deckPage, deckPageSize);
     state.deckPage = page.currentPage;
 
     if (!decks.length) {
       elements.deckGrid.innerHTML = '<p class="empty-state">No hay decks registrados en mesas guardadas con esos filtros.</p>';
-      renderPagination(elements.deckPagination, "decks", 0, 1);
+      renderPagination(elements.deckPagination, "decks", 0, 1, deckPageSize);
       return;
     }
 
@@ -809,7 +875,7 @@
         `
       )
       .join("");
-    renderPagination(elements.deckPagination, "decks", decks.length, page.currentPage);
+    renderPagination(elements.deckPagination, "decks", decks.length, page.currentPage, deckPageSize);
   }
 
   function showPlayer(playerId) {
@@ -853,6 +919,41 @@
     `;
 
     elements.dialog.showModal();
+  }
+
+  function showGuild(guildKey) {
+    const decks = recordedDecks()
+      .filter((deck) => (normalizeColors(deck.colors || []) || "C") === guildKey)
+      .sort((a, b) => b.wins - a.wins || deckWinRate(b) - deckWinRate(a) || a.commander.localeCompare(b.commander));
+
+    elements.guildDialogContent.innerHTML = `
+      <div class="dialog-hero">
+        <span class="guild-rank rank-1">${shortColorLabel(guildKey === "C" ? [] : guildKey.split(""))}</span>
+        <div>
+          <span class="section-kicker">Guild</span>
+          <h2>${guildName(guildKey)}</h2>
+          <p class="empty-state">${guildKey === "C" ? "Sin color" : guildKey} | ${decks.length} decks registrados</p>
+          ${guildKey === "C" ? '<span class="mana-row"><span class="mana">C</span></span>' : manaPips(guildKey.split(""))}
+        </div>
+      </div>
+      <div class="dialog-body guild-deck-list">
+        ${decks.length ? decks.map((deck) => `
+          <article class="dialog-deck">
+            <div>
+              <h3>${deckCommanderLink(deck)}</h3>
+              <p class="empty-state">${deck.player} | ${deck.archetype} | ${deck.wins}-${deck.losses}</p>
+              ${manaPips(deck.colors)}
+            </div>
+            <div class="deck-actions">
+              <a class="deck-link" href="${deck.moxfield}" target="_blank" rel="noreferrer">Moxfield</a>
+              <a class="deck-link" href="${deck.videoUrl || data.socials[0].url}" target="_blank" rel="noreferrer">Watch Video</a>
+            </div>
+          </article>
+        `).join("") : '<p class="empty-state">Todavía no hay decks registrados con estos colores.</p>'}
+      </div>
+    `;
+
+    elements.guildDialog.showModal();
   }
 
   function render() {
@@ -957,6 +1058,13 @@
       return;
     }
 
+    const guildLink = event.target.closest("[data-guild-key]");
+    if (guildLink) {
+      event.preventDefault();
+      showGuild(guildLink.dataset.guildKey);
+      return;
+    }
+
     const profileLink = event.target.closest("[data-player-id]");
     if (!profileLink) return;
 
@@ -974,6 +1082,10 @@
   }
 
   function showCardPreview(content, event) {
+    const activeDialog = elements.guildDialog.open ? elements.guildDialog : elements.dialog.open ? elements.dialog : document.body;
+    if (elements.cardPreview.parentElement !== activeDialog) {
+      activeDialog.appendChild(elements.cardPreview);
+    }
     elements.cardPreview.innerHTML = content;
     elements.cardPreview.hidden = false;
     elements.cardPreview.setAttribute("aria-hidden", "false");
@@ -1025,9 +1137,19 @@
     elements.dialog.close();
   });
 
+  elements.closeGuildDialog.addEventListener("click", () => {
+    elements.guildDialog.close();
+  });
+
   elements.dialog.addEventListener("click", (event) => {
     if (event.target === elements.dialog) {
       elements.dialog.close();
+    }
+  });
+
+  elements.guildDialog.addEventListener("click", (event) => {
+    if (event.target === elements.guildDialog) {
+      elements.guildDialog.close();
     }
   });
 

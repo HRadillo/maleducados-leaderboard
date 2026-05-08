@@ -499,6 +499,66 @@ h2 {
     rgba(7, 8, 11, 0.96);
 }
 
+.rank-card.rank-1,
+.rank-row.rank-1,
+.guild-stat-card.rank-1 {
+  border-color: rgba(232, 200, 103, 0.58);
+  box-shadow: inset 4px 0 0 rgba(232, 200, 103, 0.78), 0 18px 42px rgba(0, 0, 0, 0.24);
+}
+
+.rank-card.rank-2,
+.rank-row.rank-2,
+.guild-stat-card.rank-2 {
+  border-color: rgba(198, 205, 214, 0.48);
+  box-shadow: inset 4px 0 0 rgba(198, 205, 214, 0.64), 0 18px 42px rgba(0, 0, 0, 0.2);
+}
+
+.rank-card.rank-3,
+.rank-row.rank-3,
+.guild-stat-card.rank-3 {
+  border-color: rgba(194, 124, 74, 0.52);
+  box-shadow: inset 4px 0 0 rgba(194, 124, 74, 0.66), 0 18px 42px rgba(0, 0, 0, 0.2);
+}
+
+.rank-row.rank-1 td {
+  background: linear-gradient(90deg, rgba(232, 200, 103, 0.08), rgba(232, 200, 103, 0.015) 42%, transparent);
+}
+
+.rank-row.rank-2 td {
+  background: linear-gradient(90deg, rgba(198, 205, 214, 0.07), rgba(198, 205, 214, 0.014) 42%, transparent);
+}
+
+.rank-row.rank-3 td {
+  background: linear-gradient(90deg, rgba(194, 124, 74, 0.08), rgba(194, 124, 74, 0.014) 42%, transparent);
+}
+
+.rank-row.rank-1 td:first-child {
+  box-shadow: inset 4px 0 0 rgba(232, 200, 103, 0.78);
+}
+
+.rank-row.rank-2 td:first-child {
+  box-shadow: inset 4px 0 0 rgba(198, 205, 214, 0.64);
+}
+
+.rank-row.rank-3 td:first-child {
+  box-shadow: inset 4px 0 0 rgba(194, 124, 74, 0.66);
+}
+
+.rank-pill,
+.guild-rank {
+  background: var(--gold);
+}
+
+.rank-row.rank-2 .rank-pill,
+.guild-rank.rank-2 {
+  background: #c6cdd6;
+}
+
+.rank-row.rank-3 .rank-pill,
+.guild-rank.rank-3 {
+  background: #c27c4a;
+}
+
 .podium-rank {
   position: absolute;
   top: 18px;
@@ -638,6 +698,20 @@ h2 {
   background: rgba(255, 255, 255, 0.035);
 }
 
+.guild-link {
+  border: 0;
+  color: inherit;
+  background: transparent;
+  padding: 0;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.guild-link:hover {
+  color: var(--green);
+}
+
 .guild-rank {
   display: grid;
   place-items: center;
@@ -645,7 +719,6 @@ h2 {
   height: 30px;
   border-radius: 999px;
   color: #090a0c;
-  background: var(--gold);
   font-size: 12px;
   font-weight: 900;
 }
@@ -761,6 +834,16 @@ select:focus {
   gap: 6px;
 }
 
+.pagination i {
+  display: inline-grid;
+  place-items: center;
+  min-width: 24px;
+  min-height: 38px;
+  color: var(--muted);
+  font-style: normal;
+  font-weight: 900;
+}
+
 .pagination button {
   min-width: 38px;
   min-height: 38px;
@@ -799,6 +882,11 @@ select:focus {
   font-size: 11px;
 }
 
+.compact-pagination i {
+  min-height: 32px;
+  font-size: 11px;
+}
+
 table {
   width: 100%;
   min-width: 980px;
@@ -820,6 +908,10 @@ th {
 }
 
 .table-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
   border: 0;
   color: inherit;
   background: transparent;
@@ -837,12 +929,13 @@ th {
 }
 
 .table-sort.is-active::after {
-  content: " ↓";
+  content: "↓";
   color: var(--green);
+  flex: 0 0 auto;
 }
 
 .table-sort.is-active[data-direction="asc"]::after {
-  content: " ↑";
+  content: "↑";
 }
 
 tbody tr {
@@ -860,7 +953,6 @@ tbody tr:hover {
   height: 30px;
   border-radius: 999px;
   color: #090a0c;
-  background: var(--gold);
   font-weight: 900;
 }
 
@@ -1095,6 +1187,10 @@ tbody tr:hover {
   box-shadow: var(--shadow);
 }
 
+.guild-dialog {
+  width: min(920px, calc(100% - 28px));
+}
+
 .player-dialog::backdrop {
   background: rgba(0, 0, 0, 0.64);
   backdrop-filter: blur(12px);
@@ -1104,7 +1200,7 @@ tbody tr:hover {
   position: fixed;
   top: 0;
   left: 0;
-  z-index: 20;
+  z-index: 2147483647;
   width: 250px;
   pointer-events: none;
   filter: drop-shadow(0 24px 40px rgba(0, 0, 0, 0.58));
@@ -1201,6 +1297,11 @@ tbody tr:hover {
 
 .dialog-deck h3 {
   margin: 0 0 6px;
+}
+
+.guild-deck-list {
+  display: grid;
+  gap: 12px;
 }
 
 .admin-section {
