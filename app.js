@@ -149,6 +149,13 @@
     return total === 0 ? 0 : Math.round((deck.wins / total) * 100);
   }
 
+  function compareRecentDate(left = "", right = "") {
+    if (!left && !right) return 0;
+    if (!left) return 1;
+    if (!right) return -1;
+    return right.localeCompare(left);
+  }
+
   function shortColorLabel(colors) {
     return normalizeColors(colors) || "C";
   }
@@ -345,10 +352,12 @@
           current.losses += 1;
         }
 
-        current.videoUrl = table.videoUrl || current.videoUrl;
-        current.tableTitle = table.title || current.tableTitle;
-        current.tableDate = table.date || current.tableDate;
-        current.lastPlayedAt = table.date || current.lastPlayedAt;
+        if (!current.lastPlayedAt || compareRecentDate(table.date || "", current.lastPlayedAt) < 0) {
+          current.videoUrl = table.videoUrl || current.videoUrl;
+          current.tableTitle = table.title || current.tableTitle;
+          current.tableDate = table.date || current.tableDate;
+          current.lastPlayedAt = table.date || current.lastPlayedAt;
+        }
         current.colors = participant.colors?.length ? participant.colors : current.colors;
         current.cardImage = participant.cardImage || current.cardImage;
         current.cardUrl = participant.cardUrl || current.cardUrl;
@@ -377,6 +386,7 @@
         wins: 0,
         losses: 0,
         appearances: 0,
+        lastPlayedAt: "",
         colors: [],
         decks: []
       };
@@ -384,18 +394,25 @@
       current.wins += Number(deck.wins || 0);
       current.losses += Number(deck.losses || 0);
       current.decks.push(deck);
+      current.appearances += Number(deck.appearances || 0);
+      if (!current.lastPlayedAt || compareRecentDate(deck.lastPlayedAt || "", current.lastPlayedAt) < 0) {
+        current.lastPlayedAt = deck.lastPlayedAt || current.lastPlayedAt;
+      }
       deck.colors.forEach((color) => {
         if (!current.colors.includes(color)) current.colors.push(color);
       });
-      current.appearances = current.wins + current.losses;
       players.set(deck.playerId, current);
     });
 
     return [...players.values()];
   }
 
-  function score(player) {
-    return player.wins * 4 + winRate(player) + player.appearances * 2;
+  function leaderboardCompare(a, b) {
+    return winRate(b) - winRate(a) ||
+      b.appearances - a.appearances ||
+      compareRecentDate(a.lastPlayedAt, b.lastPlayedAt) ||
+      b.wins - a.wins ||
+      a.name.localeCompare(b.name);
   }
 
   function matchingDecks(player) {
@@ -497,13 +514,13 @@
   function rankedPlayers(players = data.players) {
     return [...players].sort((a, b) => {
       const sorters = {
-        score: score(b) - score(a),
+        score: leaderboardCompare(a, b),
         player: a.name.localeCompare(b.name),
-        wins: b.wins - a.wins || winRate(b) - winRate(a),
-        losses: b.losses - a.losses || a.name.localeCompare(b.name),
-        winrate: winRate(b) - winRate(a) || b.wins - a.wins,
-        appearances: b.appearances - a.appearances || b.wins - a.wins,
-        decks: b.decks.length - a.decks.length || b.wins - a.wins,
+        wins: b.wins - a.wins || leaderboardCompare(a, b),
+        losses: b.losses - a.losses || leaderboardCompare(a, b),
+        winrate: leaderboardCompare(a, b),
+        appearances: b.appearances - a.appearances || leaderboardCompare(a, b),
+        decks: b.decks.length - a.decks.length || leaderboardCompare(a, b),
         commander: (a.decks[0]?.commander || "").localeCompare(b.decks[0]?.commander || "")
       };
 
@@ -700,6 +717,11 @@
 
   function renderRows() {
     const players = rankedPlayers(filteredPlayers());
+    const leaderboardRanks = new Map(
+      [...filteredPlayers()]
+        .sort(leaderboardCompare)
+        .map((player, index) => [player.id, index + 1])
+    );
     const page = pageItems(players, state.rankingPage);
     state.rankingPage = page.currentPage;
 
@@ -720,7 +742,7 @@
         const color = rateColor(rate);
         return `
           <tr>
-            <td data-label="Rank"><span class="rank-pill">${page.start + index + 1}</span></td>
+            <td data-label="Rank"><span class="rank-pill">${leaderboardRanks.get(player.id) || page.start + index + 1}</span></td>
             <td>
               <div class="player-cell">
                 <span class="avatar alt-${index % 3}">${initials(player.name)}</span>
