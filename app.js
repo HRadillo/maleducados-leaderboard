@@ -153,6 +153,41 @@
     return total === 0 ? 0 : Math.round((deck.wins / total) * 100);
   }
 
+  function splitCommanderNames(commander = "") {
+    return String(commander)
+      .replace(/\s*\/\/\s*/g, " + ")
+      .split(/\s+\+\s+|\s+&\s+/)
+      .map((name) => name.trim())
+      .filter(Boolean);
+  }
+
+  function normalizeCommanderDisplay(commander = "") {
+    const names = splitCommanderNames(commander);
+    return names.length > 1 ? names.join(" & ") : commander.trim();
+  }
+
+  function knownCommanderColors(commander = "") {
+    const hints = {
+      "pako, arcane retriever": ["R", "G"],
+      "haldan, avid arcanist": ["U", "G"],
+      "rograkh, son of rohgahh": ["R"],
+      "silas renn, seeker adept": ["U", "B"],
+      "burakos, party leader": ["B"],
+      "folk hero": ["W"]
+    };
+
+    return splitCommanderNames(commander).reduce((colors, name) => {
+      (hints[name.toLowerCase()] || []).forEach((color) => {
+        if (!colors.includes(color)) colors.push(color);
+      });
+      return colors;
+    }, []);
+  }
+
+  function normalizedCommanderColors(commander = "", colors = []) {
+    return colorOrder.filter((color) => [...(colors || []), ...knownCommanderColors(commander)].includes(color));
+  }
+
   function compareRecentDate(left = "", right = "") {
     if (!left && !right) return 0;
     if (!left) return 1;
@@ -201,9 +236,20 @@
   }
 
   function compactPages(currentPage, totalPages) {
-    const visible = new Set([1, totalPages, currentPage, currentPage - 2, currentPage - 1, currentPage + 1, currentPage + 2]);
-    if (currentPage <= 5) [2, 3, 4, 5, 6, 7].forEach((page) => visible.add(page));
-    if (currentPage >= totalPages - 4) [totalPages - 6, totalPages - 5, totalPages - 4, totalPages - 3, totalPages - 2, totalPages - 1].forEach((page) => visible.add(page));
+    if (totalPages <= 5) {
+      return Array.from({ length: totalPages }, (_, index) => index + 1);
+    }
+
+    const visible = new Set([1, totalPages, currentPage]);
+
+    if (currentPage <= 3) {
+      [2, 3, 4].forEach((page) => visible.add(page));
+    } else if (currentPage >= totalPages - 2) {
+      [totalPages - 3, totalPages - 2, totalPages - 1].forEach((page) => visible.add(page));
+    } else {
+      [currentPage - 1, currentPage + 1].forEach((page) => visible.add(page));
+    }
+
     const pages = [...visible]
       .filter((page) => page >= 1 && page <= totalPages)
       .sort((a, b) => a - b);
@@ -287,13 +333,13 @@
   }
 
   function findDeckByCommander(commander) {
-    const normalized = commander?.trim().toLowerCase();
+    const normalized = normalizeCommanderDisplay(commander || "").toLowerCase();
     if (!normalized) return null;
 
-    return recordedDecks().find((deck) => deck.commander?.trim().toLowerCase() === normalized) ||
+    return recordedDecks().find((deck) => normalizeCommanderDisplay(deck.commander || "").toLowerCase() === normalized) ||
       data.players
         .flatMap((player) => player.decks)
-        .find((deck) => deck.commander?.trim().toLowerCase() === normalized);
+        .find((deck) => normalizeCommanderDisplay(deck.commander || "").toLowerCase() === normalized);
   }
 
   function canonicalPlayerName(name = "") {
@@ -376,18 +422,20 @@
 
     tableRows.forEach((table) => {
       (table.participants || []).forEach((participant) => {
+        const commander = normalizeCommanderDisplay(participant.commander || "");
+        const colors = normalizedCommanderColors(commander, participant.colors || []);
         const key = [
           canonicalPlayerKey(participant.name || ""),
-          participant.commander?.trim().toLowerCase(),
+          commander.toLowerCase(),
           participant.moxfield || ""
         ].join("|");
 
         if (!participant.name || !participant.commander) return;
 
         const current = decks.get(key) || {
-          commander: participant.commander,
+          commander,
           archetype: participant.archetype || "Commander",
-          colors: participant.colors || [],
+          colors,
           wins: 0,
           losses: 0,
           moxfield: participant.moxfield || "https://moxfield.com/users/LosMaleducadosDelMagic",
@@ -419,7 +467,8 @@
           current.tableDate = table.date || current.tableDate;
           current.lastPlayedAt = table.date || current.lastPlayedAt;
         }
-        current.colors = participant.colors?.length ? participant.colors : current.colors;
+        current.commander = commander || current.commander;
+        current.colors = colors.length ? colors : current.colors;
         current.cardImage = participant.cardImage || current.cardImage;
         current.cardUrl = participant.cardUrl || current.cardUrl;
         current.tables.add(table.id || table.title);
@@ -888,7 +937,8 @@
         <div>
           <span class="section-kicker">${player.role}</span>
           <h2>${player.name}</h2>
-          <p class="empty-state">${player.signature}</p>
+          ${player.handle ? `<p class="profile-handle">${player.handle}</p>` : ""}
+          ${player.signature ? `<p class="empty-state">${player.signature}</p>` : ""}
         </div>
       </div>
       <div class="dialog-body">

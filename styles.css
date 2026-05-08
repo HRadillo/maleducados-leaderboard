@@ -520,15 +520,15 @@ h2 {
   box-shadow: inset 4px 0 0 rgba(194, 124, 74, 0.66), 0 18px 42px rgba(0, 0, 0, 0.2);
 }
 
-.rank-row.rank-1 td {
+.rank-row.rank-1 td:first-child {
   background: linear-gradient(90deg, rgba(232, 200, 103, 0.08), rgba(232, 200, 103, 0.015) 42%, transparent);
 }
 
-.rank-row.rank-2 td {
+.rank-row.rank-2 td:first-child {
   background: linear-gradient(90deg, rgba(198, 205, 214, 0.07), rgba(198, 205, 214, 0.014) 42%, transparent);
 }
 
-.rank-row.rank-3 td {
+.rank-row.rank-3 td:first-child {
   background: linear-gradient(90deg, rgba(194, 124, 74, 0.08), rgba(194, 124, 74, 0.014) 42%, transparent);
 }
 
@@ -1251,6 +1251,19 @@ tbody tr:hover {
 
 .dialog-hero h2 {
   font-size: 30px;
+}
+
+.profile-handle {
+  display: inline-flex;
+  width: fit-content;
+  margin: 6px 0 0;
+  border: 1px solid rgba(117, 213, 166, 0.28);
+  border-radius: 999px;
+  color: var(--green);
+  background: rgba(117, 213, 166, 0.08);
+  padding: 6px 10px;
+  font-size: 13px;
+  font-weight: 900;
 }
 
 .dialog-body {

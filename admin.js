@@ -82,6 +82,23 @@ function colorsToText(colors) {
   return allowedColors.filter((color) => colors?.includes(color)).join("");
 }
 
+function splitCommanderNames(commander = "") {
+  return String(commander)
+    .replace(/\s*\/\/\s*/g, " + ")
+    .split(/\s+\+\s+|\s+&\s+/)
+    .map((name) => name.trim())
+    .filter(Boolean);
+}
+
+function normalizeCommanderDisplay(commander = "") {
+  const names = splitCommanderNames(commander);
+  return names.length > 1 ? names.join(" & ") : commander.trim();
+}
+
+function mergeColors(...colorSets) {
+  return allowedColors.filter((color) => colorSets.flat().includes(color));
+}
+
 function formatDateInput(value = "") {
   if (!value) return "";
   const date = new Date(value);
@@ -128,6 +145,16 @@ async function fetchCommanderCard(commander) {
   return scryfallCardFromPayload(await response.json());
 }
 
+async function fetchCommanderCards(commander) {
+  const names = splitCommanderNames(commander);
+  const cards = await Promise.all(names.map((name) => fetchCommanderCard(name).catch(() => ({ colors: [], image: "", url: "" }))));
+  return {
+    colors: mergeColors(...cards.map((card) => card.colors)),
+    image: cards[0]?.image || "",
+    url: cards[0]?.url || ""
+  };
+}
+
 function extractMoxfieldDeckId(url) {
   try {
     const parsed = new URL(url);
@@ -151,10 +178,10 @@ function commanderFromMoxfieldPayload(payload) {
   for (const entry of commanderEntries) {
     if (!entry) continue;
     const cards = Array.isArray(entry) ? entry : Object.values(entry);
-    const commander = cards
+    const commanders = cards
       .map((item) => item.card || item)
-      .find((card) => card?.name && (card.type_line || card.type || "").toLowerCase().includes("legendary"));
-    if (commander?.name) return commander.name;
+      .filter((card) => card?.name && (card.type_line || card.type || "").toLowerCase().includes("legendary"));
+    if (commanders.length) return commanders.map((commander) => commander.name).join(" & ");
   }
 
   return payload.commanderName || payload.main?.name || "";
@@ -179,7 +206,7 @@ async function fetchMoxfieldDeck(moxfieldUrl) {
 
   const payload = await response.json();
   return {
-    commander: commanderFromMoxfieldPayload(payload),
+    commander: normalizeCommanderDisplay(commanderFromMoxfieldPayload(payload)),
     name: payload.name || "",
     archetype: payload.format || "Commander"
   };
@@ -260,7 +287,7 @@ function parsePlayerLine(line) {
 
   return {
     name: parts[0].trim(),
-    commander: parts.slice(1).join(" - ").replace(/\s*\+\s*Folk Hero/i, "").trim()
+    commander: normalizeCommanderDisplay(parts.slice(1).join(" - ").replace(/\s*\+\s*Folk Hero/i, "").trim())
   };
 }
 
@@ -384,7 +411,7 @@ function ensurePlayer(data, participant) {
 
 function findDeck(player, participant) {
   return player.decks.find((deck) =>
-    deck.commander.trim().toLowerCase() === participant.commander.trim().toLowerCase() &&
+    normalizeCommanderDisplay(deck.commander).toLowerCase() === normalizeCommanderDisplay(participant.commander).toLowerCase() &&
     (!participant.moxfield || deck.moxfield === participant.moxfield)
   );
 }
@@ -417,7 +444,7 @@ function applyTableToAggregates(data, table, direction = 1) {
 
     if (!deck) {
       deck = {
-        commander: participant.commander,
+        commander: normalizeCommanderDisplay(participant.commander),
         archetype: participant.archetype || "Commander",
         colors: participant.colors || [],
         wins: 0,
@@ -430,6 +457,7 @@ function applyTableToAggregates(data, table, direction = 1) {
       player.decks.push(deck);
     }
 
+    deck.commander = normalizeCommanderDisplay(participant.commander || deck.commander || "");
     deck.colors = participant.colors || deck.colors || [];
     deck.cardImage = participant.cardImage || deck.cardImage || "";
     deck.cardUrl = participant.cardUrl || deck.cardUrl || "";
@@ -881,7 +909,10 @@ nodes.tableForm.addEventListener("click", (event) => {
     const commander = commanderField.value.trim();
     if (!commander) return;
 
-    fetchCommanderCard(commander).then((card) => {
+    const normalizedCommander = normalizeCommanderDisplay(commander);
+    commanderField.value = normalizedCommander;
+
+    fetchCommanderCards(normalizedCommander).then((card) => {
       const index = Number(row.dataset.participantIndex);
       draftParticipants[index] = {
         ...(draftParticipants[index] || emptyParticipant()),
@@ -914,11 +945,11 @@ nodes.participantList.addEventListener("change", async (event) => {
   if (event.target.name === "participantMoxfield" && event.target.value.trim()) {
     const deckInfo = await fetchMoxfieldDeck(event.target.value.trim()).catch(() => null);
     if (deckInfo?.commander) {
-      row.querySelector('[name="participantCommander"]').value = deckInfo.commander;
+      row.querySelector('[name="participantCommander"]').value = normalizeCommanderDisplay(deckInfo.commander);
       if (!row.querySelector('[name="participantArchetype"]').value) {
         row.querySelector('[name="participantArchetype"]').value = deckInfo.archetype;
       }
-      const card = await fetchCommanderCard(deckInfo.commander);
+      const card = await fetchCommanderCards(deckInfo.commander);
       const index = Number(row.dataset.participantIndex);
       draftParticipants[index] = {
         ...(draftParticipants[index] || emptyParticipant()),
@@ -928,8 +959,8 @@ nodes.participantList.addEventListener("change", async (event) => {
         cardUrl: card.url
       };
       row.querySelector(".participant-card-status").textContent = card.colors.length
-        ? `Comandante desde Moxfield: ${deckInfo.commander} | ${colorsToText(card.colors)}`
-        : `Comandante desde Moxfield: ${deckInfo.commander}`;
+        ? `Comandante desde Moxfield: ${normalizeCommanderDisplay(deckInfo.commander)} | ${colorsToText(card.colors)}`
+        : `Comandante desde Moxfield: ${normalizeCommanderDisplay(deckInfo.commander)}`;
     }
   }
 });
@@ -979,9 +1010,11 @@ nodes.tableForm.addEventListener("submit", async (event) => {
 
   setMessage("Buscando comandantes en Scryfall...", "info");
   participants = await Promise.all(participants.map(async (participant) => {
-    const card = await fetchCommanderCard(participant.commander);
+    const commander = normalizeCommanderDisplay(participant.commander);
+    const card = await fetchCommanderCards(commander);
     return {
       ...participant,
+      commander,
       archetype: participant.archetype || "Commander",
       colors: card.colors.length ? card.colors : participant.colors || [],
       cardImage: card.image || participant.cardImage || "",
