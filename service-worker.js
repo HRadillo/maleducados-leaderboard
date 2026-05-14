@@ -1,4 +1,4 @@
-const CACHE_NAME = "maleducados-leaderboard-v18";
+const CACHE_NAME = "maleducados-leaderboard-v20";
 const APP_SHELL = [
   "index.html",
   "styles.css",
@@ -11,7 +11,8 @@ const APP_SHELL = [
   "assets/brand/logo.png",
   "assets/brand/icon-180.png",
   "assets/brand/icon-192.png",
-  "assets/brand/icon-512.png"
+  "assets/brand/icon-512.png",
+  "firestore.rules"
 ];
 
 self.addEventListener("install", (event) => {

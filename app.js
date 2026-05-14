@@ -389,31 +389,51 @@
     return `${now.getFullYear()}-${month}-${day}`;
   }
 
-  function latestRecordedTable() {
-    const tableRows = (data.tables || []).filter((table) => table.date);
-    if (!tableRows.length) return null;
-    const today = todayKey();
-    const playableTables = tableRows.filter((table) => table.date <= today);
-    const candidates = playableTables.length ? playableTables : tableRows;
-    return [...candidates].sort((a, b) => compareRecentDate(a.date, b.date))[0] || null;
+  function dateKey(value = "") {
+    const match = String(value).match(/\d{4}-\d{2}-\d{2}/);
+    return match?.[0] || "";
   }
 
-  function latestTablePayload() {
-    const latestTable = latestRecordedTable();
-    if (!latestTable) return data.latestTable || {};
-    const winners = tableWinners(latestTable);
+  function latestRecordedTable() {
+    const tableRows = (data.tables || []).filter((table) => dateKey(table.date));
+    if (!tableRows.length) return null;
+    const today = todayKey();
+    const playableTables = tableRows.filter((table) => dateKey(table.date) <= today);
+    const candidates = playableTables.length ? playableTables : tableRows;
+    return [...candidates].sort((a, b) => compareRecentDate(dateKey(a.date), dateKey(b.date)))[0] || null;
+  }
+
+  function tablePayload(table) {
+    if (!table) return null;
+    const winners = tableWinners(table);
     const primaryWinner = winners[0];
 
     return {
-      title: latestTable.title || "Última mesa",
-      date: latestTable.date || "Último estreno",
-      winner: tableWinnerSummary(latestTable),
+      title: table.title || "Última mesa",
+      date: table.date || "Último estreno",
+      winner: tableWinnerSummary(table),
       deck: primaryWinner?.commander || "",
-      videoUrl: latestTable.videoUrl || data.socials[0].url,
+      videoUrl: table.videoUrl || data.socials[0].url,
       colors: primaryWinner?.colors || [],
       cardImage: primaryWinner?.cardImage || "",
       cardUrl: primaryWinner?.cardUrl || ""
     };
+  }
+
+  function latestTablePayload() {
+    const recordedPayload = tablePayload(latestRecordedTable());
+    const manualPayload = data.latestTable || {};
+    const manualDate = dateKey(manualPayload.date);
+    const recordedDate = dateKey(recordedPayload?.date);
+
+    if (!recordedPayload) return manualPayload;
+    if (manualPayload.manualOverride && (!manualDate || !recordedDate || manualDate >= recordedDate)) {
+      return manualPayload;
+    }
+    if (!manualPayload.manualOverride && manualDate && manualDate > recordedDate) {
+      return manualPayload;
+    }
+    return recordedPayload;
   }
 
   function recordedDecks() {

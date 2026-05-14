@@ -376,6 +376,39 @@ function tableWinnerSummary(table = {}) {
   return names.length ? names.join(" y ") : "Sin ganador";
 }
 
+function dateKey(value = "") {
+  const match = String(value).match(/\d{4}-\d{2}-\d{2}/);
+  return match?.[0] || "";
+}
+
+function compareRecentDate(left = "", right = "") {
+  if (!left && !right) return 0;
+  if (!left) return 1;
+  if (!right) return -1;
+  return right.localeCompare(left);
+}
+
+function latestRecordedTable(data) {
+  return [...tables(data)].filter((table) => dateKey(table.date))
+    .sort((a, b) => compareRecentDate(dateKey(a.date), dateKey(b.date)))[0] || null;
+}
+
+function tableSummaryPayload(table, existing = {}) {
+  if (!table) return existing;
+  const winners = tableWinners(table);
+  const primaryWinner = winners[0];
+
+  return {
+    ...existing,
+    title: table.title || "",
+    date: table.date || "",
+    winner: isTieTable(table) ? "Empate" : winners.map((winner) => winner.name).join(" y "),
+    deck: primaryWinner?.commander || "",
+    videoUrl: table.videoUrl || "",
+    manualOverride: false
+  };
+}
+
 function playerSuggestions() {
   return getCurrentData().players
     .map((player) => `<option value="${escapeAttribute(player.name)}"></option>`)
@@ -712,18 +745,18 @@ async function saveData(nextData, message = "Cambios guardados.") {
   setMessage(message, "success");
 }
 
-async function loadRemoteData() {
+async function loadRemoteData({ renderEditor = false } = {}) {
   const snapshot = await firebaseApi.getDoc(firebaseApi.docRef);
   if (!snapshot.exists()) {
-    renderAdmin();
+    if (renderEditor) renderAdmin();
     return;
   }
 
   const remoteData = snapshot.data()?.data;
-  if (remoteData?.players) {
+  if (remoteData && typeof remoteData === "object") {
     window.setLeaderboardData(remoteData);
   }
-  renderAdmin();
+  if (renderEditor) renderAdmin();
 }
 
 function setAdminVisibility(user) {
@@ -778,10 +811,15 @@ async function initFirebase() {
   nodes.login.disabled = false;
   nodes.login.textContent = "Entrar con Google";
 
+  loadRemoteData().catch((error) => {
+    console.warn("No se pudo cargar la data pública desde Firebase.", error);
+    setMessage("No pude cargar la data pública desde Firebase. Revisa que Firestore permita lectura pública del documento del leaderboard.", "error");
+  });
+
   firebaseApi.onAuthStateChanged(auth, async (user) => {
     setAdminVisibility(user);
     if (user?.email?.toLowerCase() === firebaseSetup.adminEmail.toLowerCase()) {
-      await loadRemoteData();
+      await loadRemoteData({ renderEditor: true });
     }
   });
 
@@ -826,7 +864,8 @@ nodes.settingsForm.addEventListener("submit", async (event) => {
     date: fields.latestDate.value.trim(),
     winner: fields.latestWinner.value.trim(),
     deck: fields.latestDeck.value.trim(),
-    videoUrl: fields.latestVideo.value.trim()
+    videoUrl: fields.latestVideo.value.trim(),
+    manualOverride: true
   };
 
   await saveData(data, "Resumen actualizado.");
@@ -1042,16 +1081,10 @@ nodes.tableForm.addEventListener("submit", async (event) => {
 
   applyTableToAggregates(data, nextTable, 1);
 
-  const winners = tableWinners(nextTable);
-  const primaryWinner = winners[0];
-  data.latestTable = {
-    ...(data.latestTable || {}),
-    title: nextTable.title,
-    date: nextTable.date || "Último estreno",
-    winner: isTieTable(nextTable) ? "Empate" : winners.map((winner) => winner.name).join(" y "),
-    deck: primaryWinner?.commander || "",
-    videoUrl: nextTable.videoUrl
-  };
+  const latestTable = latestRecordedTable(data);
+  if (!data.latestTable?.manualOverride || dateKey(latestTable?.date) > dateKey(data.latestTable?.date)) {
+    data.latestTable = tableSummaryPayload(latestTable, data.latestTable || {});
+  }
 
   selectedTableId = nextTable.id;
   editingFreshTable = false;
