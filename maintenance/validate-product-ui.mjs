@@ -26,6 +26,7 @@ try {
   assert.equal(Number(await page.locator('#totalGames').textContent()), data.tables.length);
   assert.equal(Number(await page.locator('#uniquePlayerCount').textContent()), model.playerProfiles.length);
   assert.equal(Number(await page.locator('#uniqueCommanderCount').textContent()), model.commanderGroups.length);
+  assert.match(await page.locator('#seasonLabel').textContent(), /^Temporada [1-4] · \d{4} \| Actualizado /);
   assert.equal(await page.locator('[data-view]:not([hidden])').count(), 4);
   assert.ok(await page.locator('#guildPlayedStats .guild-stat-card').count() > 0);
   assert.ok(await page.locator('#guildRateStats .meta-sample').count() > 0);

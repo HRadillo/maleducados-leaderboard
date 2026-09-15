@@ -336,6 +336,17 @@
     return right.localeCompare(left);
   }
 
+  function currentSeasonLabel(date = new Date()) {
+    const parts = new Intl.DateTimeFormat("en-US", {
+      month: "numeric",
+      year: "numeric",
+      timeZone: "America/Mexico_City"
+    }).formatToParts(date);
+    const month = Number(parts.find((part) => part.type === "month")?.value || 1);
+    const year = parts.find((part) => part.type === "year")?.value || date.getFullYear();
+    return `Temporada ${Math.floor((month - 1) / 3) + 1} · ${year}`;
+  }
+
   function shortColorLabel(colors) {
     return normalizeColors(colors) || "C";
   }
@@ -869,7 +880,7 @@
     const leader = [...players].sort(leaderboardCompare)[0];
     const latestMatch = recordedMatches().find((match) => match.title === latestTable.title && match.date === latestTable.date);
 
-    elements.seasonLabel.textContent = `${data.season} | Actualizado ${data.lastUpdated}`;
+    elements.seasonLabel.textContent = `${currentSeasonLabel()} | Actualizado ${data.lastUpdated}`;
     elements.latestTableTitle.textContent = latestTable.title || "Última mesa";
     elements.latestTableTitle.dataset.matchKey = latestMatch?.matchKey || "";
     elements.latestTableTitle.disabled = !latestMatch;
