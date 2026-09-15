@@ -29,6 +29,18 @@ try {
 
   assert.equal(await page.locator('#matchCount').textContent(), `${data.tables.length} partidas`);
   assert.equal(await page.locator('#matchGrid .match-card').count(), Math.min(8, data.tables.length));
+  assert.equal(await page.locator('#matchGrid .match-thumbnail').count(), Math.min(8, data.tables.length));
+  assert.ok((await page.locator('#matchGrid .match-thumbnail').first().getAttribute('src')).startsWith('https://i.ytimg.com/vi/'));
+  assert.equal(await page.locator('#matchGrid .match-thumbnail').first().getAttribute('loading'), 'lazy');
+
+  for (const thumbnail of await page.locator('#matchGrid .match-thumbnail').all()) {
+    await thumbnail.scrollIntoViewIfNeeded();
+    await thumbnail.evaluate((image) => image.complete || new Promise((resolve) => {
+      image.addEventListener('load', resolve, { once: true });
+      image.addEventListener('error', resolve, { once: true });
+    }));
+  }
+  await page.locator('#partidas').scrollIntoViewIfNeeded();
 
   const expectedNewest = [...data.tables]
     .map((table, tableIndex) => ({ table, tableIndex }))
@@ -85,17 +97,24 @@ try {
     viewport: document.documentElement.clientWidth,
     pageWidth: document.documentElement.scrollWidth,
     cardColumns: getComputedStyle(document.querySelector('#matchGrid')).gridTemplateColumns,
+    mediaRatio: document.querySelector('.match-card-media').clientWidth / document.querySelector('.match-card-media').clientHeight,
     navItems: document.querySelectorAll('.rail-nav .rail-link').length
   }));
   assert.ok(mobile.pageWidth <= mobile.viewport, `Mobile page overflows: ${mobile.pageWidth} > ${mobile.viewport}`);
   assert.equal(mobile.navItems, 4);
   assert.equal(mobile.cardColumns.split(' ').length, 1);
+  assert.ok(Math.abs(mobile.mediaRatio - (16 / 9)) < 0.02, `Unexpected thumbnail ratio: ${mobile.mediaRatio}`);
   if (screenshotDirectory) {
     await page.locator('#partidas').screenshot({ path: resolve(screenshotDirectory, 'partidas-mobile.png') });
   }
   await page.locator('#matchGrid .match-detail-button').first().click();
   const dialogWidths = await page.locator('#matchDialog').evaluate((dialog) => ({ client: dialog.clientWidth, scroll: dialog.scrollWidth }));
   assert.ok(dialogWidths.scroll <= dialogWidths.client, `Mobile dialog overflows: ${dialogWidths.scroll} > ${dialogWidths.client}`);
+
+  const missingVideoData = structuredClone(data);
+  missingVideoData.tables.forEach((table) => { table.videoUrl = ''; });
+  await page.evaluate((snapshot) => window.setLeaderboardData(snapshot), missingVideoData);
+  assert.ok(await page.locator('#matchGrid .match-card-media.is-unavailable').count() > 0);
 
   assert.deepEqual(pageErrors, []);
   console.log(JSON.stringify({

@@ -1027,6 +1027,31 @@
     return `<button class="match-link ${className}" type="button" data-match-key="${escapeAttribute(match.matchKey)}">${escapeAttribute(match.title || "Partida sin título")}</button>`;
   }
 
+  function youtubeVideoId(value = "") {
+    try {
+      const url = new URL(value);
+      const host = url.hostname.toLowerCase();
+      if (host === "youtu.be" || host.endsWith(".youtu.be")) return url.pathname.split("/").filter(Boolean)[0] || "";
+      if (host !== "youtube.com" && !host.endsWith(".youtube.com")) return "";
+      return url.searchParams.get("v") || url.pathname.match(/\/(?:shorts|embed)\/([^/?#]+)/)?.[1] || "";
+    } catch {
+      return "";
+    }
+  }
+
+  function matchThumbnail(match) {
+    const id = youtubeVideoId(match.videoUrl);
+    if (!id || !/^[\w-]+$/.test(id)) {
+      return '<div class="match-card-media is-unavailable"><span>Sin vista previa</span></div>';
+    }
+    return `
+      <div class="match-card-media">
+        <span class="match-thumbnail-fallback">Vista previa no disponible</span>
+        <img class="match-thumbnail" src="https://i.ytimg.com/vi/${encodeURIComponent(id)}/hqdefault.jpg" alt="" loading="lazy" decoding="async" width="480" height="360">
+      </div>
+    `;
+  }
+
   function commanderGroupButton(source, className = "") {
     const commanderKey = source.commanderGroupKey || source.canonicalCommanderKey;
     if (!commanderKey) return '<span class="metadata-missing">Sin comandante</span>';
@@ -1059,25 +1084,28 @@
       const remainingPlayers = match.appearances.length - visiblePlayers.length;
       return `
         <article class="match-card">
-          <div class="match-card-head">
-            <div>
-              <time datetime="${escapeAttribute(match.date)}">${escapeAttribute(match.date || "Sin fecha")}</time>
-              <h3>${matchLinkButton(match)}</h3>
-            </div>
-            <span class="result-badge ${matchResultClass(match)}">${escapeAttribute(matchResultLabel(match))}</span>
-          </div>
-          <div class="match-roster" aria-label="${match.participantsCount} participantes">
-            ${visiblePlayers.map((appearance) => `
-              <div class="match-roster-row">
-                <span>${escapeAttribute(appearance.displayedPlayerName || "Jugador sin nombre")}</span>
-                <small>${escapeAttribute(appearance.commanderDisplay || "Sin comandante")}</small>
+          ${matchThumbnail(match)}
+          <div class="match-card-body">
+            <div class="match-card-head">
+              <div>
+                <time datetime="${escapeAttribute(match.date)}">${escapeAttribute(match.date || "Sin fecha")}</time>
+                <h3>${matchLinkButton(match)}</h3>
               </div>
-            `).join("")}
-            ${remainingPlayers > 0 ? `<p>+${remainingPlayers} participantes</p>` : ""}
-          </div>
-          <div class="match-card-actions">
-            ${videoUrl ? `<a class="deck-link compact-link" href="${escapeAttribute(videoUrl)}" target="_blank" rel="noreferrer">Ver en YouTube</a>` : '<span class="link-unavailable">Video no disponible</span>'}
-            <button class="match-detail-button" type="button" data-match-key="${escapeAttribute(match.matchKey)}">Ver partida <span aria-hidden="true">›</span></button>
+              <span class="result-badge ${matchResultClass(match)}">${escapeAttribute(matchResultLabel(match))}</span>
+            </div>
+            <div class="match-roster" aria-label="${match.participantsCount} participantes">
+              ${visiblePlayers.map((appearance) => `
+                <div class="match-roster-row">
+                  <span>${escapeAttribute(appearance.displayedPlayerName || "Jugador sin nombre")}</span>
+                  <small>${escapeAttribute(appearance.commanderDisplay || "Sin comandante")}</small>
+                </div>
+              `).join("")}
+              ${remainingPlayers > 0 ? `<p>+${remainingPlayers} participantes</p>` : ""}
+            </div>
+            <div class="match-card-actions">
+              ${videoUrl ? `<a class="deck-link compact-link" href="${escapeAttribute(videoUrl)}" target="_blank" rel="noreferrer">Ver en YouTube</a>` : '<span class="link-unavailable">Video no disponible</span>'}
+              <button class="match-detail-button" type="button" data-match-key="${escapeAttribute(match.matchKey)}">Ver partida <span aria-hidden="true">›</span></button>
+            </div>
           </div>
         </article>
       `;
@@ -1643,6 +1671,14 @@
     showPlayer(profileLink.dataset.playerId, profileLink);
   });
 
+  document.addEventListener("error", (event) => {
+    if (event.target.matches?.(".match-thumbnail")) {
+      event.target.hidden = true;
+      return;
+    }
+    if (event.target.matches?.(".commander-art img")) event.target.remove();
+  }, true);
+
   function movePlayerPreview(event, trigger) {
     if (elements.playerPreview.hidden || !trigger) return;
     const triggerRect = trigger.getBoundingClientRect();
@@ -1776,11 +1812,6 @@
 
     hideCardPreview();
   });
-
-  document.addEventListener("error", (event) => {
-    if (!event.target.matches?.(".commander-art img")) return;
-    event.target.remove();
-  }, true);
 
   elements.closeDialog.addEventListener("click", () => {
     elements.dialog.close();
