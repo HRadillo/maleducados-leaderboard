@@ -8,15 +8,15 @@ La app pertenece al proyecto **Los Maleducados del Magic**, llevado por Alan Vil
 
 Este sitio reúne en un solo lugar:
 
-- Ranking de jugadores e invitados.
+- Inicio con insights del historial y búsqueda global.
+- Ranking y perfiles de jugadores e invitados.
 - Wins, losses y win rate.
 - Estadística de hosts vs invitados.
-- Estadísticas por guild/identidad de color: más jugadas, más ganadoras y más derrotadas.
-- Decks jugados en mesas guardadas.
+- Estadísticas por identidad de color: apariciones, victorias y win rate con tamaño de muestra.
+- Archivo de comandantes agrupados y partidas históricas.
 - Links a Moxfield para consultar listas.
 - Links a videos de YouTube de las partidas.
 - Imágenes de comandantes usando Scryfall.
-- Conteo de suscriptores del canal.
 
 ## Sitio
 
@@ -59,10 +59,13 @@ Desde el modo editor se puede:
 - Completar automáticamente colores, imagen y link de carta usando Scryfall.
 - Actualizar la última mesa.
 - Actualizar datos generales del canal.
+- Revisar observaciones de calidad de datos sin modificarlos automáticamente.
 
 ## Datos
 
 Los datos viven en Firebase Firestore. La app pública puede leerlos, pero sólo la cuenta autorizada puede escribir cambios.
+
+La autorización real de escritura vive en `firestore.rules`; el chequeo de email del frontend sólo controla la experiencia del editor. Consulta [SECURITY.md](maintenance/SECURITY.md) para verificar las reglas desplegadas y restringir la API key de YouTube.
 
 Como respaldo inicial, existe `data.js`, que contiene datos base para que el sitio pueda cargar aunque Firestore todavía no tenga información.
 
@@ -81,6 +84,8 @@ Como respaldo inicial, existe `data.js`, que contiene datos base para que el sit
 - `styles.css`: diseño visual.
 - `app.js`: leaderboard, filtros, estadísticas y vista pública.
 - `admin.js`: modo editor.
+- `derived-data.js`: modelo común de apariciones, jugadores, comandantes y partidas.
+- `data-health.js`: diagnóstico no destructivo de calidad e invariantes.
 - `data.js`: datos base y configuración de YouTube.
 - `firebase-config.js`: conexión con Firebase.
 - `assets/brand/`: logo e isotipo optimizados para web.
@@ -94,3 +99,22 @@ firebase deploy --only hosting
 ```
 
 También conviene subir los cambios a GitHub para mantener el respaldo actualizado.
+
+## Preparacion Antes de Cambiar el Modelo
+
+La base de trabajo es esta carpeta local; GitHub se actualiza despues de verificarla.
+Consulta la [auditoria de fase 1](maintenance/AUDIT.md), el
+[modelo actual e invariantes](maintenance/DATA-MODEL.md) y el
+[procedimiento de backup y rollback](maintenance/BACKUP.md).
+
+Con Node.js 20 o superior, desde esta carpeta:
+
+```bash
+node maintenance/snapshot.mjs backup
+node --test maintenance/checks.test.mjs
+node maintenance/preflight.mjs .backups/REFERENCIA .backups/CAPTURA_FRESCA
+```
+
+El respaldo usa exclusivamente una lectura publica de Firestore. No modifica
+`data.js` ni envia escrituras. Los archivos de mantenimiento y `.backups/`
+quedan fuera de Hosting; los snapshots tampoco se deben subir a GitHub.

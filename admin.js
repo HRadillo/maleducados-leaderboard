@@ -9,13 +9,29 @@ const nodes = {
   status: document.querySelector("#adminStatus"),
   message: document.querySelector("#adminMessage"),
   settingsForm: document.querySelector("#siteSettingsForm"),
+  tableSearch: document.querySelector("#tableSearchInput"),
   tableList: document.querySelector("#tableList"),
+  tablePagination: document.querySelector("#tablePagination"),
   tableForm: document.querySelector("#tableForm"),
   tableFormTitle: document.querySelector("#tableFormTitle"),
   newTable: document.querySelector("#newTable"),
   deleteTable: document.querySelector("#deleteTable"),
   addParticipant: document.querySelector("#addParticipant"),
   participantList: document.querySelector("#participantList"),
+  playerSearch: document.querySelector("#playerSearchInput"),
+  playerList: document.querySelector("#playerList"),
+  playerPagination: document.querySelector("#playerPagination"),
+  playerSelect: document.querySelector("#playerSelect"),
+  playerMergeSelect: document.querySelector("#playerMergeSelect"),
+  playerName: document.querySelector("#playerNameInput"),
+  playerHandle: document.querySelector("#playerHandleInput"),
+  playerRole: document.querySelector("#playerRoleInput"),
+  playerAliases: document.querySelector("#playerAliasesInput"),
+  playerDeckSummary: document.querySelector("#playerDeckSummary"),
+  savePlayer: document.querySelector("#savePlayer"),
+  refreshDataHealth: document.querySelector("#refreshDataHealth"),
+  dataHealthSummary: document.querySelector("#dataHealthSummary"),
+  dataHealthIssues: document.querySelector("#dataHealthIssues"),
   json: document.querySelector("#adminJson"),
   loadJson: document.querySelector("#loadJson"),
   saveJson: document.querySelector("#saveJson")
@@ -26,6 +42,13 @@ let currentUser = null;
 let selectedTableId = "";
 let draftParticipants = [];
 let editingFreshTable = false;
+let tableQuery = "";
+let tablePage = 1;
+const tablePageSize = 8;
+let playerQuery = "";
+let playerPage = 1;
+let selectedPlayerName = "";
+const playerPageSize = 6;
 
 nodes.login.disabled = true;
 nodes.login.textContent = "Cargando Google...";
@@ -82,17 +105,103 @@ function colorsToText(colors) {
   return allowedColors.filter((color) => colors?.includes(color)).join("");
 }
 
+function clampPage(page, totalItems, pageSize = tablePageSize) {
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+  return Math.min(Math.max(1, page), totalPages);
+}
+
+function pageItems(items, page, pageSize = tablePageSize) {
+  const currentPage = clampPage(page, items.length, pageSize);
+  const start = (currentPage - 1) * pageSize;
+
+  return {
+    currentPage,
+    totalPages: Math.max(1, Math.ceil(items.length / pageSize)),
+    items: items.slice(start, start + pageSize)
+  };
+}
+
+function compactPages(currentPage, totalPages) {
+  if (totalPages <= 5) {
+    return Array.from({ length: totalPages }, (_, index) => index + 1);
+  }
+
+  const visible = new Set([1, totalPages, currentPage]);
+  if (currentPage <= 3) {
+    [2, 3, 4].forEach((page) => visible.add(page));
+  } else if (currentPage >= totalPages - 2) {
+    [totalPages - 3, totalPages - 2, totalPages - 1].forEach((page) => visible.add(page));
+  } else {
+    [currentPage - 1, currentPage + 1].forEach((page) => visible.add(page));
+  }
+
+  const pages = [...visible]
+    .filter((page) => page >= 1 && page <= totalPages)
+    .sort((a, b) => a - b);
+
+  return pages.reduce((items, page, index) => {
+    if (index && page - pages[index - 1] > 1) items.push("ellipsis");
+    items.push(page);
+    return items;
+  }, []);
+}
+
 function splitCommanderNames(commander = "") {
-  return String(commander)
+  const protectedNames = new Map([
+    ["Minsc & Boo, Timeless Heroes", "Minsc __AMP__ Boo, Timeless Heroes"]
+  ]);
+  let value = String(commander);
+  protectedNames.forEach((replacement, name) => {
+    value = value.replaceAll(name, replacement);
+  });
+
+  return value
     .replace(/\s*\/\/\s*/g, " + ")
     .split(/\s+\+\s+|\s+&\s+/)
     .map((name) => name.trim())
+    .map((name) => name.replace(/__AMP__/g, "&").replace(/[\u200d\uFE0E\uFE0F]/g, "").trim())
     .filter(Boolean);
 }
 
 function normalizeCommanderDisplay(commander = "") {
   const names = splitCommanderNames(commander);
   return names.length > 1 ? names.join(" & ") : commander.trim();
+}
+
+function commanderNamesFromParticipant(participant = {}) {
+  return [
+    participant.commander,
+    participant.partnerCommander
+  ]
+    .flatMap(splitCommanderNames)
+    .map((name) => name.trim())
+    .filter(Boolean);
+}
+
+function commanderDisplayFromParticipant(participant = {}) {
+  const names = commanderNamesFromParticipant(participant);
+  return names.length ? names.join(" & ") : normalizeCommanderDisplay(participant.commander || "");
+}
+
+function commanderPartsFromParticipant(participant = {}) {
+  if (Array.isArray(participant.commanders) && participant.commanders.length) {
+    return participant.commanders
+      .map((commander) => ({
+        name: normalizeCommanderDisplay(commander.name || commander.commander || ""),
+        colors: normalizeColors(commander.colors || []),
+        cardImage: commander.cardImage || commander.image || "",
+        cardUrl: commander.cardUrl || commander.url || ""
+      }))
+      .filter((commander) => commander.name);
+  }
+
+  const names = commanderNamesFromParticipant(participant);
+  return names.map((name, index) => ({
+    name,
+    colors: index === 0 ? normalizeColors(participant.colors || []) : [],
+    cardImage: index === 0 ? participant.cardImage || "" : "",
+    cardUrl: index === 0 ? participant.cardUrl || "" : ""
+  }));
 }
 
 function mergeColors(...colorSets) {
@@ -123,6 +232,7 @@ function scryfallCardFromPayload(payload) {
   }
 
   return {
+    name: payload.name || "",
     colors: normalizeColors(payload.color_identity || []),
     image,
     url: payload.scryfall_uri || ""
@@ -140,15 +250,17 @@ async function fetchCommanderCard(commander) {
     response = await fetch(url);
   }
 
-  if (!response.ok) return { colors: [], image: "", url: "" };
+  if (!response.ok) return { name: commander, colors: [], image: "", url: "" };
 
-  return scryfallCardFromPayload(await response.json());
+  const card = scryfallCardFromPayload(await response.json());
+  return { ...card, name: card.name || commander };
 }
 
 async function fetchCommanderCards(commander) {
   const names = splitCommanderNames(commander);
-  const cards = await Promise.all(names.map((name) => fetchCommanderCard(name).catch(() => ({ colors: [], image: "", url: "" }))));
+  const cards = await Promise.all(names.map((name) => fetchCommanderCard(name).catch(() => ({ name, colors: [], image: "", url: "" }))));
   return {
+    cards,
     colors: mergeColors(...cards.map((card) => card.colors)),
     image: cards[0]?.image || "",
     url: cards[0]?.url || ""
@@ -403,7 +515,8 @@ function tableSummaryPayload(table, existing = {}) {
     title: table.title || "",
     date: table.date || "",
     winner: isTieTable(table) ? "Empate" : winners.map((winner) => winner.name).join(" y "),
-    deck: primaryWinner?.commander || "",
+    deck: primaryWinner ? commanderDisplayFromParticipant(primaryWinner) : "",
+    commanders: primaryWinner ? commanderPartsFromParticipant(primaryWinner) : [],
     videoUrl: table.videoUrl || "",
     manualOverride: false
   };
@@ -444,7 +557,7 @@ function ensurePlayer(data, participant) {
 
 function findDeck(player, participant) {
   return player.decks.find((deck) =>
-    normalizeCommanderDisplay(deck.commander).toLowerCase() === normalizeCommanderDisplay(participant.commander).toLowerCase() &&
+    normalizeCommanderDisplay(deck.commander).toLowerCase() === commanderDisplayFromParticipant(participant).toLowerCase() &&
     (!participant.moxfield || deck.moxfield === participant.moxfield)
   );
 }
@@ -477,7 +590,8 @@ function applyTableToAggregates(data, table, direction = 1) {
 
     if (!deck) {
       deck = {
-        commander: normalizeCommanderDisplay(participant.commander),
+        commander: commanderDisplayFromParticipant(participant),
+        commanders: commanderPartsFromParticipant(participant),
         archetype: participant.archetype || "Commander",
         colors: participant.colors || [],
         wins: 0,
@@ -490,7 +604,8 @@ function applyTableToAggregates(data, table, direction = 1) {
       player.decks.push(deck);
     }
 
-    deck.commander = normalizeCommanderDisplay(participant.commander || deck.commander || "");
+    deck.commander = commanderDisplayFromParticipant(participant) || deck.commander || "";
+    deck.commanders = commanderPartsFromParticipant(participant);
     deck.colors = participant.colors || deck.colors || [];
     deck.cardImage = participant.cardImage || deck.cardImage || "";
     deck.cardUrl = participant.cardUrl || deck.cardUrl || "";
@@ -535,25 +650,48 @@ function tables(data) {
   return data.tables;
 }
 
+function validWebUrl(value = "") {
+  return !value || Boolean(window.MaleducadosDataHealth?.validHttpUrl(value));
+}
+
+function likelyDuplicateTable(candidate, existingTables, ignoredId = "") {
+  const title = nameKey(candidate.title);
+  const video = candidate.videoUrl.trim().toLowerCase();
+  return existingTables.find((table) => table.id !== ignoredId && (
+    (video && table.videoUrl?.trim().toLowerCase() === video) ||
+    (title && nameKey(table.title) === title && candidate.date && table.date === candidate.date)
+  ));
+}
+
 function emptyParticipant() {
   return {
     id: crypto.randomUUID ? crypto.randomUUID() : `p-${Date.now()}-${Math.random()}`,
     name: "",
     handle: "",
     commander: "",
+    partnerCommander: "",
+    commanders: [],
     archetype: "",
     moxfield: "",
     colors: [],
     cardImage: "",
     cardUrl: "",
-    collapsed: false
+    collapsed: true
   };
 }
 
 function hydrateDraftParticipants(table) {
   draftParticipants = table?.participants?.length
-    ? table.participants.map((participant) => ({ ...participant }))
-    : [emptyParticipant(), emptyParticipant(), emptyParticipant(), emptyParticipant()];
+    ? table.participants.map((participant) => {
+        const parts = commanderPartsFromParticipant(participant);
+        return {
+          ...participant,
+          commander: parts[0]?.name || participant.commander || "",
+          partnerCommander: participant.partnerCommander || parts.slice(1).map((part) => part.name).join(" & "),
+          collapsed: true
+        };
+      })
+    : [0, 1, 2, 3].map(() => emptyParticipant());
 }
 
 function readParticipantRows() {
@@ -563,6 +701,9 @@ function readParticipantRows() {
     name: row.querySelector('[name="participantName"]').value.trim(),
     handle: row.querySelector('[name="participantHandle"]').value.trim(),
     commander: row.querySelector('[name="participantCommander"]').value.trim(),
+    partnerCommander: row.querySelector('[name="participantHasPartner"]')?.checked
+      ? row.querySelector('[name="participantPartnerCommander"]')?.value.trim() || ""
+      : "",
     archetype: row.querySelector('[name="participantArchetype"]').value.trim(),
     moxfield: row.querySelector('[name="participantMoxfield"]').value.trim()
   }));
@@ -612,14 +753,22 @@ function renderParticipantRows() {
     .map((participant, index) => `
       <details class="participant-row" data-participant-index="${index}" ${participant.collapsed ? "" : "open"}>
         <summary class="participant-row-head">
-          <strong>${participant.name || `Jugador ${index + 1}`}</strong>
-          <span>${participant.commander || "Sin comandante"}</span>
+          <span class="participant-summary-main">
+            <strong>${participant.name || `Jugador ${index + 1}`}</strong>
+            <small>${participant.handle || "Sin username"}</small>
+          </span>
+          <span class="participant-summary-meta">
+            <strong>${commanderDisplayFromParticipant(participant) || "Sin comandante"}</strong>
+            <small>${participant.colors?.length ? colorsToText(participant.colors) : participant.archetype || "Pendiente"}</small>
+          </span>
         </summary>
         <div class="editor-fields two-col">
           <label><span>Nombre</span><input name="participantName" list="playerSuggestions" placeholder="Nombre del jugador" value="${escapeAttribute(participant.name)}"></label>
           <label><span>Username (opcional)</span><input name="participantHandle" placeholder="@usuario" value="${escapeAttribute(participant.handle)}"></label>
           <label class="wide"><span>Deck conocido</span><select name="knownDeck"><option value="">Rellenar manualmente</option></select></label>
           <label><span>Comandante</span><input name="participantCommander" placeholder="Tivit, Seller of Secrets" value="${escapeAttribute(participant.commander)}"></label>
+          <label class="partner-toggle"><span>Partner</span><input name="participantHasPartner" type="checkbox" ${participant.partnerCommander ? "checked" : ""}><small>Usó dos comandantes</small></label>
+          <label class="partner-commander-field ${participant.partnerCommander ? "" : "is-hidden"}"><span>Comandante partner</span><input name="participantPartnerCommander" placeholder="Folk Hero / Haldan..." value="${escapeAttribute(participant.partnerCommander)}"></label>
           <label><span>Arquetipo (opcional)</span><input name="participantArchetype" placeholder="Esper Control" value="${escapeAttribute(participant.archetype)}"></label>
           <label class="wide"><span>Moxfield</span><input name="participantMoxfield" type="url" placeholder="https://moxfield.com/..." value="${escapeAttribute(participant.moxfield)}"></label>
         </div>
@@ -663,7 +812,15 @@ function applyKnownDeck(row) {
   const deck = player?.decks?.[Number(row.querySelector('[name="knownDeck"]').value)];
   if (!deck) return;
 
-  row.querySelector('[name="participantCommander"]').value = deck.commander || "";
+  const partnerField = row.querySelector('[name="participantPartnerCommander"]');
+  const partnerToggle = row.querySelector('[name="participantHasPartner"]');
+  const commanderNames = deck.commanders?.length
+    ? deck.commanders.map((commander) => commander.name || commander.commander).filter(Boolean)
+    : splitCommanderNames(deck.commander || "");
+  row.querySelector('[name="participantCommander"]').value = commanderNames[0] || deck.commander || "";
+  partnerField.value = commanderNames.slice(1).join(" & ");
+  partnerToggle.checked = Boolean(partnerField.value);
+  partnerField.closest("label").classList.toggle("is-hidden", !partnerField.value);
   row.querySelector('[name="participantArchetype"]').value = deck.archetype || "";
   row.querySelector('[name="participantMoxfield"]').value = deck.moxfield || "";
 
@@ -680,24 +837,288 @@ function applyKnownDeck(row) {
     : "Deck conocido seleccionado.";
 }
 
+function tableSearchText(table) {
+  return [
+    table.title,
+    table.date,
+    table.videoUrl,
+    tableWinnerSummary(table),
+    ...(table.participants || []).flatMap((participant) => [
+      participant.name,
+      participant.handle,
+      commanderDisplayFromParticipant(participant),
+      participant.archetype,
+      colorsToText(participant.colors)
+    ])
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+}
+
+function filteredTables(data) {
+  const query = tableQuery.trim().toLowerCase();
+  return [...tables(data)]
+    .sort((a, b) => compareRecentDate(dateKey(a.date), dateKey(b.date)) || (b.id || "").localeCompare(a.id || ""))
+    .filter((table) => !query || tableSearchText(table).includes(query));
+}
+
+function duplicateTableKeys(data) {
+  const counts = new Map();
+  tables(data).forEach((table) => {
+    const key = [
+      slugify(table.title || ""),
+      dateKey(table.date || ""),
+      table.videoUrl || ""
+    ].join("|");
+    counts.set(key, (counts.get(key) || 0) + 1);
+  });
+  return counts;
+}
+
+function renderTablePagination(totalItems, currentPage, totalPages) {
+  if (!nodes.tablePagination) return;
+
+  if (totalPages <= 1) {
+    nodes.tablePagination.innerHTML = "";
+    return;
+  }
+
+  const pages = compactPages(currentPage, totalPages);
+  nodes.tablePagination.innerHTML = `
+    <button type="button" data-admin-table-page="${Math.max(1, currentPage - 1)}" ${currentPage === 1 ? "disabled" : ""}>Prev</button>
+    <span>${pages.map((page) => (
+      page === "ellipsis"
+        ? '<i aria-hidden="true">...</i>'
+        : `<button class="${page === currentPage ? "is-active" : ""}" type="button" data-admin-table-page="${page}" aria-label="Página ${page}">${page}</button>`
+    )).join("")}</span>
+    <button type="button" data-admin-table-page="${Math.min(totalPages, currentPage + 1)}" ${currentPage === totalPages ? "disabled" : ""}>Next</button>
+  `;
+}
+
 function renderTableList() {
   const data = getCurrentData();
+  const tableRows = filteredTables(data);
+  const duplicateKeys = duplicateTableKeys(data);
+  const page = pageItems(tableRows, tablePage);
+  tablePage = page.currentPage;
 
-  nodes.tableList.innerHTML = tables(data).length
-    ? tables(data)
+  nodes.tableList.innerHTML = tableRows.length
+    ? page.items
         .map((table) => {
+          const duplicateKey = [slugify(table.title || ""), dateKey(table.date || ""), table.videoUrl || ""].join("|");
+          const duplicateLabel = duplicateKeys.get(duplicateKey) > 1 ? " | Posible duplicado" : "";
           return `
             <button class="admin-list-row ${table.id === selectedTableId ? "is-selected" : ""}" type="button" data-table-id="${table.id}">
               <span>
                 <strong>${table.title}</strong>
-                <small>${table.participants.length} jugadores | Resultado: ${tableWinnerSummary(table)}</small>
+                <small>${table.participants.length} jugadores | Resultado: ${tableWinnerSummary(table)}${duplicateLabel}</small>
               </span>
               <span>${table.date || ""}</span>
             </button>
           `;
         })
         .join("")
-    : '<p class="empty-state">Aún no hay mesas guardadas desde este editor.</p>';
+    : `<p class="empty-state">${tables(data).length ? "No hay mesas con esa búsqueda." : "Aún no hay mesas guardadas desde este editor."}</p>`;
+
+  renderTablePagination(tableRows.length, page.currentPage, page.totalPages);
+}
+
+function nameKey(value = "") {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+}
+
+function uniqueText(values) {
+  return [...new Set(values.map((value) => String(value || "").trim()).filter(Boolean))];
+}
+
+function mergeDeckEntries(decks = []) {
+  const deckMap = new Map();
+
+  decks.forEach((deck) => {
+    if (!deck?.commander) return;
+    const commander = normalizeCommanderDisplay(deck.commander);
+    const key = `${commander.toLowerCase()}|${deck.moxfield || ""}`;
+    const current = deckMap.get(key) || {
+      commander,
+      commanders: deck.commanders || [],
+      archetype: deck.archetype || "Commander",
+      colors: normalizeColors(deck.colors || []),
+      wins: 0,
+      losses: 0,
+      moxfield: deck.moxfield || "https://moxfield.com/users/LosMaleducadosDelMagic",
+      videoUrl: deck.videoUrl || "",
+      cardImage: deck.cardImage || "",
+      cardUrl: deck.cardUrl || ""
+    };
+
+    current.wins += Number(deck.wins || 0);
+    current.losses += Number(deck.losses || 0);
+    current.archetype = deck.archetype || current.archetype;
+    current.colors = normalizeColors([...(current.colors || []), ...(deck.colors || [])]);
+    current.videoUrl = deck.videoUrl || current.videoUrl;
+    current.cardImage = deck.cardImage || current.cardImage;
+    current.cardUrl = deck.cardUrl || current.cardUrl;
+    current.commanders = deck.commanders?.length ? deck.commanders : current.commanders;
+    deckMap.set(key, current);
+  });
+
+  return [...deckMap.values()];
+}
+
+function playerDirectory() {
+  const data = getCurrentData();
+  const directory = new Map();
+
+  function entryFor(name) {
+    const key = nameKey(name);
+    if (!key) return null;
+    if (!directory.has(key)) {
+      directory.set(key, {
+        key,
+        name: name.trim(),
+        handle: "",
+        role: "Invitado",
+        aliases: [],
+        decks: [],
+        tables: new Set()
+      });
+    }
+    return directory.get(key);
+  }
+
+  data.players.forEach((player) => {
+    const entry = entryFor(player.name || "");
+    if (!entry) return;
+    entry.handle ||= player.handle || "";
+    entry.role = player.role || entry.role;
+    entry.aliases = uniqueText([...(entry.aliases || []), ...(player.aliases || [])]);
+    entry.decks.push(...(player.decks || []));
+  });
+
+  tables(data).forEach((table) => {
+    (table.participants || []).forEach((participant) => {
+      const entry = entryFor(participant.name || "");
+      if (!entry) return;
+      entry.handle ||= participant.handle || "";
+      entry.tables.add(table.id || table.title);
+      entry.decks.push({
+        commander: commanderDisplayFromParticipant(participant),
+        commanders: commanderPartsFromParticipant(participant),
+        archetype: participant.archetype || "Commander",
+        colors: participant.colors || [],
+        wins: tableWinnerIds(table).includes(participant.id) ? 1 : 0,
+        losses: isTieTable(table) ? 0 : tableWinnerIds(table).includes(participant.id) ? 0 : 1,
+        moxfield: participant.moxfield || "",
+        videoUrl: table.videoUrl || "",
+        cardImage: participant.cardImage || "",
+        cardUrl: participant.cardUrl || ""
+      });
+    });
+  });
+
+  return [...directory.values()]
+    .map((entry) => ({
+      ...entry,
+      aliases: uniqueText(entry.aliases),
+      decks: mergeDeckEntries(entry.decks),
+      tableCount: entry.tables.size
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function playerSearchText(entry) {
+  return [
+    entry.name,
+    entry.handle,
+    entry.role,
+    ...entry.aliases,
+    ...entry.decks.flatMap((deck) => [deck.commander, ...(deck.commanders || []).map((commander) => commander.name), deck.archetype, colorsToText(deck.colors)])
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+}
+
+function filteredPlayersForEditor() {
+  const query = playerQuery.trim().toLowerCase();
+  return playerDirectory().filter((entry) => !query || playerSearchText(entry).includes(query));
+}
+
+function renderPlayerPagination(totalItems, currentPage, totalPages) {
+  if (totalPages <= 1) {
+    nodes.playerPagination.innerHTML = "";
+    return;
+  }
+
+  const pages = compactPages(currentPage, totalPages);
+  nodes.playerPagination.innerHTML = `
+    <button type="button" data-admin-player-page="${Math.max(1, currentPage - 1)}" ${currentPage === 1 ? "disabled" : ""}>Prev</button>
+    <span>${pages.map((page) => (
+      page === "ellipsis"
+        ? '<i aria-hidden="true">...</i>'
+        : `<button class="${page === currentPage ? "is-active" : ""}" type="button" data-admin-player-page="${page}" aria-label="Página ${page}">${page}</button>`
+    )).join("")}</span>
+    <button type="button" data-admin-player-page="${Math.min(totalPages, currentPage + 1)}" ${currentPage === totalPages ? "disabled" : ""}>Next</button>
+  `;
+}
+
+function renderPlayerForm(players) {
+  const selected = players.find((player) => player.name === selectedPlayerName) || players[0];
+  selectedPlayerName = selected?.name || "";
+  const options = players
+    .map((player) => `<option value="${escapeAttribute(player.name)}">${escapeAttribute(player.name)}</option>`)
+    .join("");
+  const mergeOptions = players
+    .filter((player) => player.name !== selectedPlayerName)
+    .map((player) => `<option value="${escapeAttribute(player.name)}">${escapeAttribute(player.name)}</option>`)
+    .join("");
+
+  nodes.playerSelect.innerHTML = options || '<option value="">Sin jugadores</option>';
+  nodes.playerMergeSelect.innerHTML = `<option value="">No fusionar</option>${mergeOptions}`;
+  nodes.playerSelect.value = selectedPlayerName;
+  nodes.playerName.value = selected?.name || "";
+  nodes.playerHandle.value = selected?.handle || "";
+  nodes.playerRole.value = selected?.role || "Invitado";
+  nodes.playerAliases.value = selected?.aliases?.join(", ") || "";
+  nodes.savePlayer.disabled = !selected;
+
+  nodes.playerDeckSummary.innerHTML = selected
+    ? `
+      <strong>${selected.tableCount} mesas vinculadas | ${selected.decks.length} decks</strong>
+      <div>${selected.decks.map((deck) => `<span>${escapeAttribute(deck.commander)} (${colorsToText(deck.colors) || "C"})</span>`).join("")}</div>
+    `
+    : '<p class="empty-state">Selecciona un jugador para editar.</p>';
+}
+
+function renderPlayerList() {
+  const players = filteredPlayersForEditor();
+  const page = pageItems(players, playerPage, playerPageSize);
+  playerPage = page.currentPage;
+
+  nodes.playerList.innerHTML = players.length
+    ? page.items.map((player) => `
+      <button class="admin-list-row ${player.name === selectedPlayerName ? "is-selected" : ""}" type="button" data-player-name="${escapeAttribute(player.name)}">
+        <span>
+          <strong>${player.name}</strong>
+          <small>${player.handle || "Sin username"} | ${player.role} | ${player.decks.length} decks</small>
+        </span>
+        <span>${player.tableCount} mesas</span>
+      </button>
+    `).join("")
+    : '<p class="empty-state">No hay jugadores con esa búsqueda.</p>';
+
+  renderPlayerPagination(players.length, page.currentPage, page.totalPages);
+  renderPlayerForm(players);
+}
+
+function renderPlayerManager() {
+  renderPlayerList();
 }
 
 function renderTableForm() {
@@ -724,7 +1145,25 @@ function renderAdmin() {
   renderSettingsForm();
   renderTableList();
   renderTableForm();
+  renderPlayerManager();
+  renderDataHealth();
   fillJsonEditor();
+}
+
+function renderDataHealth() {
+  const audit = window.MaleducadosDataHealth?.auditData(getCurrentData());
+  if (!audit || !nodes.dataHealthSummary || !nodes.dataHealthIssues) return;
+  const labels = { error: "Errores", warning: "Warnings", info: "Info" };
+  nodes.dataHealthSummary.innerHTML = ["error", "warning", "info"]
+    .map((severity) => `<span class="health-count ${severity}"><strong>${audit.counts[severity]}</strong>${labels[severity]}</span>`)
+    .join("");
+  nodes.dataHealthIssues.innerHTML = ["error", "warning", "info"].map((severity) => {
+    const issues = audit.issues.filter((issue) => issue.severity === severity);
+    if (!issues.length) return "";
+    return `<details class="health-group ${severity}"><summary>${labels[severity]} (${issues.length})</summary><ul>${issues.map((issue) => `
+      <li><strong>${escapeAttribute(issue.title)}</strong><span>${escapeAttribute(issue.detail || "")}</span></li>
+    `).join("")}</ul></details>`;
+  }).join("") || '<p class="empty-state">No se encontraron observaciones.</p>';
 }
 
 async function saveData(nextData, message = "Cambios guardados.") {
@@ -733,7 +1172,6 @@ async function saveData(nextData, message = "Cambios guardados.") {
   }
 
   recomputeAll(nextData);
-  window.setLeaderboardData(nextData);
 
   await firebaseApi.setDoc(firebaseApi.docRef, {
     data: nextData,
@@ -741,6 +1179,7 @@ async function saveData(nextData, message = "Cambios guardados.") {
     updatedBy: currentUser.email
   });
 
+  window.setLeaderboardData(nextData);
   renderAdmin();
   setMessage(message, "success");
 }
@@ -856,6 +1295,11 @@ nodes.settingsForm.addEventListener("submit", async (event) => {
   const data = getCurrentData();
   const fields = nodes.settingsForm.elements;
 
+  if (!validWebUrl(fields.latestVideo.value.trim())) {
+    setMessage("La URL del video más reciente debe comenzar con http:// o https://.", "error");
+    return;
+  }
+
   data.season = fields.season.value.trim();
   data.lastUpdated = fields.lastUpdated.value;
   data.latestTable = {
@@ -874,7 +1318,22 @@ nodes.settingsForm.addEventListener("submit", async (event) => {
 nodes.newTable.addEventListener("click", () => {
   selectedTableId = "";
   editingFreshTable = true;
+  tablePage = 1;
   renderTableForm();
+});
+
+nodes.tableSearch.addEventListener("input", (event) => {
+  tableQuery = event.target.value;
+  tablePage = 1;
+  renderTableList();
+});
+
+nodes.tablePagination.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-admin-table-page]");
+  if (!button) return;
+
+  tablePage = Number(button.dataset.adminTablePage);
+  renderTableList();
 });
 
 nodes.tableList.addEventListener("click", (event) => {
@@ -886,7 +1345,36 @@ nodes.tableList.addEventListener("click", (event) => {
   renderAdmin();
 });
 
-nodes.addParticipant.addEventListener("click", () => {
+nodes.playerSearch.addEventListener("input", (event) => {
+  playerQuery = event.target.value;
+  playerPage = 1;
+  renderPlayerList();
+});
+
+nodes.playerPagination.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-admin-player-page]");
+  if (!button) return;
+
+  playerPage = Number(button.dataset.adminPlayerPage);
+  renderPlayerList();
+});
+
+nodes.playerList.addEventListener("click", (event) => {
+  const row = event.target.closest("[data-player-name]");
+  if (!row) return;
+
+  selectedPlayerName = row.dataset.playerName;
+  renderPlayerList();
+});
+
+nodes.playerSelect.addEventListener("change", (event) => {
+  selectedPlayerName = event.target.value;
+  renderPlayerList();
+});
+
+nodes.addParticipant.addEventListener("click", (event) => {
+  event.preventDefault();
+  event.stopPropagation();
   draftParticipants = readParticipantRows();
   draftParticipants.push(emptyParticipant());
   renderParticipantRows();
@@ -927,6 +1415,8 @@ nodes.participantList.addEventListener("click", (event) => {
 
   const row = event.target.closest("[data-participant-index]");
   const index = Number(row.dataset.participantIndex);
+  const participant = readParticipantRows()[index];
+  if ((participant?.name || participant?.commander || participant?.moxfield) && !window.confirm(`¿Quitar a ${participant.name || "este jugador"} de la mesa?`)) return;
   draftParticipants = readParticipantRows().filter((_, itemIndex) => itemIndex !== index);
   if (!draftParticipants.length) draftParticipants.push(emptyParticipant());
   renderParticipantRows();
@@ -945,17 +1435,28 @@ nodes.tableForm.addEventListener("click", (event) => {
   if (hydrateButton) {
     const row = event.target.closest(".participant-row");
     const commanderField = row.querySelector('[name="participantCommander"]');
-    const commander = commanderField.value.trim();
+    const partnerField = row.querySelector('[name="participantPartnerCommander"]');
+    const commander = [commanderField.value.trim(), partnerField.value.trim()].filter(Boolean).join(" & ");
     if (!commander) return;
 
     const normalizedCommander = normalizeCommanderDisplay(commander);
-    commanderField.value = normalizedCommander;
+    const names = splitCommanderNames(normalizedCommander);
+    commanderField.value = names[0] || "";
+    partnerField.value = names.slice(1).join(" & ");
+    row.querySelector('[name="participantHasPartner"]').checked = Boolean(partnerField.value);
+    partnerField.closest("label").classList.toggle("is-hidden", !partnerField.value);
 
     fetchCommanderCards(normalizedCommander).then((card) => {
       const index = Number(row.dataset.participantIndex);
       draftParticipants[index] = {
         ...(draftParticipants[index] || emptyParticipant()),
         ...readParticipantRows()[index],
+        commanders: card.cards.map((item) => ({
+          name: item.name,
+          colors: item.colors,
+          cardImage: item.image,
+          cardUrl: item.url
+        })),
         colors: card.colors,
         cardImage: card.image,
         cardUrl: card.url
@@ -981,10 +1482,20 @@ nodes.participantList.addEventListener("change", async (event) => {
     syncWinnerOptions();
   }
 
+  if (event.target.name === "participantHasPartner") {
+    const partnerField = row.querySelector('[name="participantPartnerCommander"]');
+    partnerField.closest("label").classList.toggle("is-hidden", !event.target.checked);
+    if (!event.target.checked) partnerField.value = "";
+  }
+
   if (event.target.name === "participantMoxfield" && event.target.value.trim()) {
     const deckInfo = await fetchMoxfieldDeck(event.target.value.trim()).catch(() => null);
     if (deckInfo?.commander) {
-      row.querySelector('[name="participantCommander"]').value = normalizeCommanderDisplay(deckInfo.commander);
+      const names = splitCommanderNames(normalizeCommanderDisplay(deckInfo.commander));
+      row.querySelector('[name="participantCommander"]').value = names[0] || "";
+      row.querySelector('[name="participantPartnerCommander"]').value = names.slice(1).join(" & ");
+      row.querySelector('[name="participantHasPartner"]').checked = names.length > 1;
+      row.querySelector('[name="participantPartnerCommander"]').closest("label").classList.toggle("is-hidden", names.length <= 1);
       if (!row.querySelector('[name="participantArchetype"]').value) {
         row.querySelector('[name="participantArchetype"]').value = deckInfo.archetype;
       }
@@ -993,6 +1504,12 @@ nodes.participantList.addEventListener("change", async (event) => {
       draftParticipants[index] = {
         ...(draftParticipants[index] || emptyParticipant()),
         ...readParticipantRows()[index],
+        commanders: card.cards.map((item) => ({
+          name: item.name,
+          colors: item.colors,
+          cardImage: item.image,
+          cardUrl: item.url
+        })),
         colors: card.colors,
         cardImage: card.image,
         cardUrl: card.url
@@ -1022,6 +1539,21 @@ nodes.tableForm.addEventListener("submit", async (event) => {
     return;
   }
 
+  if (!validWebUrl(fields.videoUrl.value.trim()) || participants.some((participant) => !validWebUrl(participant.moxfield))) {
+    setMessage("Revisa las URLs de YouTube y Moxfield: deben comenzar con http:// o https://.", "error");
+    return;
+  }
+  if (fields.videoUrl.value && !window.MaleducadosDataHealth.hostMatches(fields.videoUrl.value, ["youtube.com", "youtu.be"]) && !window.confirm("El enlace de video no pertenece a YouTube. ¿Guardar de todos modos?")) return;
+  if (participants.some((participant) => participant.moxfield && !window.MaleducadosDataHealth.hostMatches(participant.moxfield, ["moxfield.com"])) && !window.confirm("Hay un enlace de deck que no pertenece a Moxfield. ¿Guardar de todos modos?")) return;
+
+  const duplicate = likelyDuplicateTable({
+    title: fields.title.value.trim(),
+    date: fields.date.value.trim(),
+    videoUrl: fields.videoUrl.value.trim()
+  }, tables(data), existingTable?.id || "");
+  if (duplicate && !window.confirm(`Esta mesa se parece a “${duplicate.title}”. ¿Guardar de todos modos?`)) return;
+  if (!fields.date.value && !window.confirm("La mesa no tiene fecha. ¿Guardar de todos modos?")) return;
+
   const resultMode = fields.resultMode.value;
   const winnerIds = resultMode === "tie"
     ? []
@@ -1049,13 +1581,23 @@ nodes.tableForm.addEventListener("submit", async (event) => {
 
   setMessage("Buscando comandantes en Scryfall...", "info");
   participants = await Promise.all(participants.map(async (participant) => {
-    const commander = normalizeCommanderDisplay(participant.commander);
+    const commander = commanderDisplayFromParticipant(participant);
     const card = await fetchCommanderCards(commander);
+    const previousCards = commanderPartsFromParticipant(participant);
+    const { collapsed, ...cleanParticipant } = participant;
+    const cards = card.cards.map((item, index) => ({
+      name: item.name || previousCards[index]?.name || splitCommanderNames(commander)[index] || "",
+      colors: item.colors.length ? item.colors : previousCards[index]?.colors || [],
+      cardImage: item.image || previousCards[index]?.cardImage || "",
+      cardUrl: item.url || previousCards[index]?.cardUrl || ""
+    }));
     return {
-      ...participant,
-      commander,
+      ...cleanParticipant,
+      commander: splitCommanderNames(commander)[0] || commander,
+      partnerCommander: splitCommanderNames(commander).slice(1).join(" & "),
+      commanders: cards,
       archetype: participant.archetype || "Commander",
-      colors: card.colors.length ? card.colors : participant.colors || [],
+      colors: mergeColors(...cards.map((item) => item.colors), participant.colors || []),
       cardImage: card.image || participant.cardImage || "",
       cardUrl: card.url || participant.cardUrl || ""
     };
@@ -1088,6 +1630,7 @@ nodes.tableForm.addEventListener("submit", async (event) => {
 
   selectedTableId = nextTable.id;
   editingFreshTable = false;
+  tablePage = 1;
   await saveData(data, "Mesa guardada.");
 });
 
@@ -1102,14 +1645,83 @@ nodes.deleteTable.addEventListener("click", async () => {
   applyTableToAggregates(data, table, -1);
   data.tables = tables(data).filter((item) => item.id !== selectedTableId);
   selectedTableId = "";
+  tablePage = 1;
   await saveData(data, "Mesa borrada.");
+});
+
+nodes.savePlayer.addEventListener("click", async () => {
+  const data = getCurrentData();
+  const selectedName = nodes.playerSelect.value.trim();
+  const mergeName = nodes.playerMergeSelect.value.trim();
+  const finalName = nodes.playerName.value.trim();
+  const finalHandle = nodes.playerHandle.value.trim();
+  const finalRole = nodes.playerRole.value;
+  const sourceNames = uniqueText([selectedName, mergeName]);
+
+  if (!selectedName || !finalName) {
+    setMessage("Selecciona un jugador y escribe el nombre final.", "error");
+    return;
+  }
+
+  if (mergeName && !window.confirm(`¿Fusionar “${selectedName}” y “${mergeName}” bajo “${finalName}”? Las mesas históricas conservarán sus participaciones bajo esa identidad.`)) return;
+
+  const sourceKeys = new Set(sourceNames.map(nameKey));
+  const finalKey = nameKey(finalName);
+  const aliases = uniqueText([
+    ...nodes.playerAliases.value.split(","),
+    ...sourceNames.filter((name) => nameKey(name) !== finalKey)
+  ]);
+  const directoryDecks = playerDirectory()
+    .filter((player) => sourceKeys.has(nameKey(player.name)) || nameKey(player.name) === finalKey)
+    .flatMap((player) => player.decks || []);
+  const matchedPlayers = data.players.filter((player) => sourceKeys.has(nameKey(player.name)) || nameKey(player.name) === finalKey);
+  const mergedDecks = mergeDeckEntries([...matchedPlayers.flatMap((player) => player.decks || []), ...directoryDecks]);
+  const basePlayer = matchedPlayers[0] || {
+    id: slugify(finalName) || `jugador-${Date.now()}`,
+    signature: "",
+    wins: 0,
+    losses: 0,
+    appearances: 0,
+    colors: [],
+    decks: []
+  };
+
+  tables(data).forEach((table) => {
+    (table.participants || []).forEach((participant) => {
+      if (!sourceKeys.has(nameKey(participant.name)) && nameKey(participant.name) !== finalKey) return;
+      participant.name = finalName;
+      if (finalHandle) participant.handle = finalHandle;
+    });
+  });
+
+  data.players = data.players.filter((player) => !sourceKeys.has(nameKey(player.name)) && nameKey(player.name) !== finalKey);
+  const nextPlayer = {
+    ...basePlayer,
+    id: basePlayer.id || slugify(finalName),
+    name: finalName,
+    handle: finalHandle || basePlayer.handle || "",
+    role: finalRole,
+    aliases,
+    decks: mergedDecks.length ? mergedDecks : basePlayer.decks || []
+  };
+  data.players.push(nextPlayer);
+  recomputeAll(data);
+
+  selectedPlayerName = finalName;
+  playerQuery = "";
+  nodes.playerSearch.value = "";
+  playerPage = 1;
+  await saveData(data, mergeName ? "Jugadores fusionados." : "Jugador actualizado.");
 });
 
 nodes.loadJson.addEventListener("click", fillJsonEditor);
 
+nodes.refreshDataHealth.addEventListener("click", renderDataHealth);
+
 nodes.saveJson.addEventListener("click", async () => {
   try {
     const nextData = JSON.parse(nodes.json.value);
+    if (!window.confirm("El editor JSON reemplaza el documento completo. ¿Confirmas que revisaste el contenido y tienes un respaldo reciente?")) return;
     await saveData(nextData, "JSON guardado.");
   } catch (error) {
     setMessage(error.message, "error");

@@ -1,0 +1,9 @@
+.DS_Store
+**/.DS_Store
+.backups/
+.firebase/
+
+# Source design files stay local; optimized web assets live in assets/brand.
+*.ai
+*.eps
+*.psd

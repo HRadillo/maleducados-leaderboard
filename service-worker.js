@@ -1,10 +1,12 @@
-const CACHE_NAME = "maleducados-leaderboard-v20";
+const CACHE_NAME = "maleducados-leaderboard-v30";
 const APP_SHELL = [
   "index.html",
   "styles.css",
   "app.js",
   "admin.js",
   "data.js",
+  "derived-data.js",
+  "data-health.js",
   "firebase-config.js",
   "manifest.webmanifest",
   "assets/brand/isotipo-transparent.png",

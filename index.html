@@ -7,67 +7,74 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-title" content="Maleducados">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="description" content="Leaderboard de invitados, decks y resultados de Los Maleducados del Magic.">
+    <meta name="description" content="Leaderboard de invitados, comandantes y resultados de Los Maleducados del Magic.">
     <title>Los Maleducados del Magic | Leaderboard</title>
     <link rel="icon" href="assets/brand/isotipo-transparent.png" type="image/png">
     <link rel="apple-touch-icon" sizes="180x180" href="assets/brand/icon-180.png">
     <link rel="manifest" href="manifest.webmanifest">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&amp;display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css">
   </head>
   <body>
     <div class="app-shell">
       <aside class="rail" aria-label="Navegacion principal">
-        <a class="brand-lockup" href="#top" aria-label="Los Maleducados del Magic">
+        <a class="brand-lockup" href="#inicio" aria-label="Los Maleducados del Magic">
           <img src="assets/brand/isotipo-transparent.png" alt="" class="brand-mark">
+          <span>Maleducados</span>
         </a>
         <nav class="rail-nav">
-          <a class="rail-link is-active" href="#leaderboard" title="Podium" aria-label="Podium">
+          <a class="rail-link is-active" href="#inicio" aria-label="Inicio">
             <svg aria-hidden="true" viewBox="0 0 24 24">
-              <path d="M8 4h8v3a4 4 0 0 1-8 0V4Z"></path>
-              <path d="M8 6H5a2 2 0 0 0 2 4"></path>
-              <path d="M16 6h3a2 2 0 0 1-2 4"></path>
-              <path d="M12 11v4"></path>
-              <path d="M9 20h6"></path>
-              <path d="M10 15h4v5h-4z"></path>
+              <path d="m3 11 9-8 9 8"></path>
+              <path d="M5 10v10h14V10"></path>
+              <path d="M9 20v-6h6v6"></path>
             </svg>
+            <span>Inicio</span>
           </a>
-          <a class="rail-link" href="#registro" title="Ranking" aria-label="Ranking">
+          <a class="rail-link" href="#jugadores" aria-label="Jugadores">
             <svg aria-hidden="true" viewBox="0 0 24 24">
               <path d="M4 19V5"></path>
               <path d="M4 19h16"></path>
               <path d="m7 15 3-3 3 2 5-7"></path>
             </svg>
+            <span>Jugadores</span>
           </a>
-          <a class="rail-link" href="#estadisticas" title="Estadísticas" aria-label="Estadísticas">
-            <svg aria-hidden="true" viewBox="0 0 24 24">
-              <path d="M5 19V9"></path>
-              <path d="M12 19V5"></path>
-              <path d="M19 19v-7"></path>
-              <path d="M3 19h18"></path>
-            </svg>
-          </a>
-          <a class="rail-link" href="#decks" title="Decks" aria-label="Decks">
+          <a class="rail-link" href="#comandantes" aria-label="Comandantes">
             <svg aria-hidden="true" viewBox="0 0 24 24">
               <rect x="7" y="3" width="10" height="18" rx="2"></rect>
               <path d="M10 7h4"></path>
               <path d="M10 17h4"></path>
             </svg>
+            <span>Comandantes</span>
+          </a>
+          <a class="rail-link" href="#partidas" title="Partidas" aria-label="Partidas">
+            <svg aria-hidden="true" viewBox="0 0 24 24">
+              <rect x="3" y="5" width="18" height="14" rx="2"></rect>
+              <path d="m10 9 5 3-5 3V9Z"></path>
+            </svg>
+            <span>Partidas</span>
           </a>
         </nav>
+        <a class="admin-access" href="#admin" aria-label="Abrir editor">
+          <svg aria-hidden="true" viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.1V21h-4v-.09A1.7 1.7 0 0 0 8.6 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1.1-.4H3v-4h.09A1.7 1.7 0 0 0 4.6 8.6a1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.83-2.83.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-.6 1.7 1.7 0 0 0 .4-1.1V3h4v.09A1.7 1.7 0 0 0 15.4 4.6a1.7 1.7 0 0 0 1.88-.34l.06-.06 2.83 2.83-.06.06A1.7 1.7 0 0 0 19.4 9c.14.37.36.7.66.96.3.26.68.4 1.08.4H21v4h-.09c-.4 0-.78.14-1.08.4-.3.26-.52.59-.66.96Z"></path>
+          </svg>
+          <span>Editor</span>
+        </a>
       </aside>
 
       <main id="top" class="page">
-        <header class="hero">
+        <header id="inicio" class="hero" data-view="inicio">
           <div class="hero-copy">
             <div class="eyebrow">
               <span class="live-dot"></span>
               <span id="seasonLabel">Temporada activa</span>
             </div>
             <h1>Los Maleducados del Magic</h1>
-            <p>Leaderboard oficial de invitados, victorias, derrotas y decks jugados en las mesas del canal.</p>
+            <p>Leaderboard oficial de invitados, victorias, derrotas y comandantes jugados en las mesas del canal.</p>
             <div class="socials hero-socials" id="socialLinks" aria-label="Redes sociales"></div>
           </div>
           <div class="hero-panel" aria-label="Última mesa del canal">
@@ -91,7 +98,7 @@
             </div>
             <div>
               <span class="panel-kicker">Última Mesa</span>
-              <strong id="latestTableTitle">-</strong>
+              <button id="latestTableTitle" class="hero-table-link" type="button">-</button>
               <p id="latestTableMeta">-</p>
             </div>
             <div class="panel-grid">
@@ -105,39 +112,54 @@
           </div>
         </header>
 
-        <section class="metric-row" aria-label="Metricas generales">
-          <article class="metric">
-            <span>Invitados diferentes</span>
-            <strong id="guestCount">0</strong>
-          </article>
-          <article class="metric">
-            <span>Partidas jugadas</span>
-            <strong id="totalGames">0</strong>
-          </article>
-          <article class="metric">
-            <span>Suscriptores</span>
-            <strong id="subscriberCount">-</strong>
-            <small id="subscriberStatus">Actualizando...</small>
-            <a id="subscribeLink" href="https://www.youtube.com/@losmaleducadosdelmagic?sub_confirmation=1" target="_blank" rel="noreferrer">Suscribirse</a>
-          </article>
+        <section class="metric-row" data-view="inicio" aria-label="Metricas generales">
+          <button class="metric metric-link" type="button" data-nav-target="#partidas">
+            <span>Partidas registradas</span><strong id="totalGames">0</strong>
+          </button>
+          <button class="metric metric-link" type="button" data-nav-target="#jugadores">
+            <span>Jugadores únicos</span><strong id="uniquePlayerCount">0</strong>
+          </button>
+          <button class="metric metric-link" type="button" data-nav-target="#comandantes">
+            <span>Comandantes únicos</span><strong id="uniqueCommanderCount">0</strong>
+          </button>
           <article class="metric rivalry-metric">
             <span>Hosts vs invitados</span>
             <strong id="hostGuestScore">0-0</strong>
             <small id="hostGuestRate">Hosts 0% | Invitados 0%</small>
           </article>
+          <button id="topCommanderMetric" class="metric metric-link insight-metric" type="button">
+            <span>Comandante más jugado</span><strong id="topCommanderName">-</strong><small id="topCommanderMeta">-</small>
+          </button>
+          <button id="leaderPlayerMetric" class="metric metric-link insight-metric" type="button">
+            <span>Jugador líder</span><strong id="leaderPlayerName">-</strong><small id="leaderPlayerMeta">-</small>
+          </button>
         </section>
 
-        <section id="leaderboard" class="leaderboard-section">
+        <section class="global-search-section" data-view="inicio" aria-label="Búsqueda global">
+          <label class="global-search">
+            <span class="section-kicker">Buscar en el archivo</span>
+            <input id="globalSearchInput" type="search" placeholder="Jugador, comandante o partida" autocomplete="off">
+          </label>
+          <div id="globalSearchResults" class="global-search-results" hidden></div>
+        </section>
+
+        <section id="estadisticas" class="stats-section" data-view="inicio">
           <div class="section-head">
-            <div>
-              <span class="section-kicker">Top 3</span>
-              <h2>Podium Maleducado</h2>
-            </div>
+            <div><span class="section-kicker">Metajuego</span><h2>Identidades de color</h2></div>
           </div>
-          <div id="podium" class="podium" aria-live="polite"></div>
+          <div class="meta-definition-row" aria-label="Definiciones de estadísticas">
+            <span><b>Jugados</b> apariciones totales</span>
+            <span><b>Victorias</b> wins acumulados</span>
+            <span><b>WR</b> wins entre partidas decididas</span>
+          </div>
+          <div class="guild-stats-grid" aria-live="polite">
+            <article class="guild-panel"><div class="guild-panel-head"><span class="section-kicker">Popularidad</span><h3>Más jugados</h3></div><div id="guildPlayedStats" class="guild-stat-list"></div></article>
+            <article class="guild-panel"><div class="guild-panel-head"><span class="section-kicker">Volumen</span><h3>Más victorias</h3></div><div id="guildWinStats" class="guild-stat-list"></div></article>
+            <article class="guild-panel"><div class="guild-panel-head"><span class="section-kicker">Eficiencia</span><h3>Mejor win rate</h3></div><div id="guildRateStats" class="guild-stat-list"></div></article>
+          </div>
         </section>
 
-        <section id="registro" class="ranking-section">
+        <section id="jugadores" class="ranking-section" data-view="jugadores" hidden>
           <div class="section-head">
             <div>
               <span class="section-kicker">Tabla general</span>
@@ -148,7 +170,7 @@
             <div class="toolbar" aria-label="Controles del leaderboard">
               <label class="search">
                 <span>Buscar</span>
-                <input id="searchInput" type="search" placeholder="Nombre o comandante">
+                <input id="searchInput" type="search" placeholder="Nombre, handle o comandante">
               </label>
               <label>
                 <span>Rol</span>
@@ -171,12 +193,11 @@
                   <tr>
                     <th scope="col"><button class="table-sort is-active" type="button" data-sort="score">Rank</button></th>
                     <th scope="col"><button class="table-sort" type="button" data-sort="player">Jugador</button></th>
+                    <th scope="col"><button class="table-sort" type="button" data-sort="appearances">Partidas</button></th>
                     <th scope="col"><button class="table-sort" type="button" data-sort="wins">Wins</button></th>
                     <th scope="col"><button class="table-sort" type="button" data-sort="losses">Losses</button></th>
                     <th scope="col"><button class="table-sort" type="button" data-sort="winrate">Win rate</button></th>
-                    <th scope="col"><button class="table-sort" type="button" data-sort="decks">Decks</button></th>
-                    <th scope="col"><button class="table-sort" type="button" data-sort="commander">Comandante</button></th>
-                    <th scope="col">Video</th>
+                    <th scope="col"><button class="table-sort" type="button" data-sort="commanders">Comandantes</button></th>
                   </tr>
                 </thead>
                 <tbody id="leaderboardRows"></tbody>
@@ -186,52 +207,43 @@
           </div>
         </section>
 
-        <section id="estadisticas" class="stats-section">
-          <div class="section-head">
-            <div>
-              <span class="section-kicker">Metajuego</span>
-              <h2>Estadísticas</h2>
-            </div>
-          </div>
-          <div class="guild-stats-grid" aria-live="polite">
-            <article class="guild-panel">
-              <div class="guild-panel-head">
-                <span class="section-kicker">Popularidad</span>
-                <h3>Más Jugados</h3>
-              </div>
-              <div id="guildPlayedStats" class="guild-stat-list"></div>
-              <nav id="guildPlayedPagination" class="pagination compact-pagination" aria-label="Páginas de colores más jugados"></nav>
-            </article>
-            <article class="guild-panel">
-              <div class="guild-panel-head">
-                <span class="section-kicker">Resultados</span>
-                <h3>Más Ganadores</h3>
-              </div>
-              <div id="guildWinStats" class="guild-stat-list"></div>
-              <nav id="guildWinPagination" class="pagination compact-pagination" aria-label="Páginas de colores más ganadores"></nav>
-            </article>
-            <article class="guild-panel">
-              <div class="guild-panel-head">
-                <span class="section-kicker">Riesgo</span>
-                <h3>Más Derrotados</h3>
-              </div>
-              <div id="guildLossStats" class="guild-stat-list"></div>
-              <nav id="guildLossPagination" class="pagination compact-pagination" aria-label="Páginas de colores más derrotados"></nav>
-            </article>
-          </div>
-        </section>
-
-        <section id="decks" class="deck-section">
+        <section id="partidas" class="match-section" data-view="partidas" hidden>
           <div class="section-head">
             <div>
               <span class="section-kicker">Archivo</span>
-              <h2>Decks Jugados</h2>
+              <h2>Partidas</h2>
+            </div>
+            <p id="matchCount" class="section-count" aria-live="polite"></p>
+          </div>
+          <div class="match-toolbar" aria-label="Controles de partidas">
+            <label class="search">
+              <span>Buscar partida</span>
+              <input id="matchSearchInput" type="search" placeholder="Título, jugador o comandante">
+            </label>
+            <label>
+              <span>Orden</span>
+              <select id="matchSortSelect">
+                <option value="date-desc">Más recientes</option>
+                <option value="date-asc">Más antiguas</option>
+                <option value="title">Título A-Z</option>
+              </select>
+            </label>
+          </div>
+          <div id="matchGrid" class="match-grid"></div>
+          <nav id="matchPagination" class="pagination" aria-label="Páginas de partidas"></nav>
+        </section>
+
+        <section id="comandantes" class="deck-section" data-view="comandantes" hidden>
+          <div class="section-head">
+            <div>
+              <span class="section-kicker">Archivo</span>
+              <h2>Comandantes</h2>
             </div>
           </div>
-          <div class="deck-toolbar" aria-label="Controles de decks jugados">
+          <div class="deck-toolbar" aria-label="Controles de comandantes">
             <label class="search">
-              <span>Buscar deck</span>
-              <input id="deckSearchInput" type="search" placeholder="Comandante, jugador o arquetipo">
+              <span>Buscar comandante</span>
+              <input id="commanderSearchInput" type="search" placeholder="Comandante, partner o jugador">
             </label>
             <fieldset class="deck-color-filter">
               <legend>Colores</legend>
@@ -243,7 +255,7 @@
             </fieldset>
             <label>
               <span>Regla</span>
-              <select id="deckColorMode">
+              <select id="commanderColorMode">
                 <option value="exact">Guild exacto</option>
                 <option value="includes">Incluye colores</option>
                 <option value="any">Cualquier color</option>
@@ -251,19 +263,20 @@
             </label>
             <label>
               <span>Orden</span>
-              <select id="deckSortSelect">
-                <option value="date">Fecha reciente</option>
+              <select id="commanderSortSelect">
+                <option value="date">Más recientes</option>
+                <option value="played">Más jugados</option>
+                <option value="winrate">Mayor win rate</option>
+                <option value="wins">Más victorias</option>
                 <option value="name">Nombre A-Z</option>
-                <option value="wins">Wins</option>
-                <option value="losses">Losses</option>
               </select>
             </label>
           </div>
-          <div id="deckGrid" class="deck-grid"></div>
-          <nav id="deckPagination" class="pagination" aria-label="Páginas de decks jugados"></nav>
+          <div id="commanderGrid" class="deck-grid commander-grid"></div>
+          <nav id="commanderPagination" class="pagination" aria-label="Páginas de comandantes"></nav>
         </section>
 
-        <section id="admin" class="admin-section" aria-label="Administracion de datos">
+        <section id="admin" class="admin-section" data-view="admin" aria-label="Administracion de datos" hidden>
           <div class="admin-locked" id="adminLocked">
             <div>
               <span class="section-kicker">Admin</span>
@@ -283,6 +296,11 @@
             </div>
 
             <div class="admin-grid">
+              <section class="editor-card data-health-card" aria-labelledby="dataHealthTitle">
+                <div class="editor-card-head"><div><h3 id="dataHealthTitle">Salud de datos</h3><p>Diagnóstico de solo lectura; nunca corrige registros automáticamente.</p></div><button id="refreshDataHealth" class="admin-button secondary" type="button">Revisar de nuevo</button></div>
+                <div id="dataHealthSummary" class="data-health-summary"></div>
+                <div id="dataHealthIssues" class="data-health-issues"></div>
+              </section>
               <form id="siteSettingsForm" class="editor-card channel-summary-card">
                 <div class="editor-card-head">
                   <div>
@@ -316,7 +334,14 @@
                   </div>
                   <button id="newTable" class="admin-button secondary" type="button">Nueva mesa</button>
                 </div>
+                <div class="table-list-controls">
+                  <label class="search">
+                    <span>Buscar mesa</span>
+                    <input id="tableSearchInput" type="search" placeholder="Mesa, jugador, comandante o fecha">
+                  </label>
+                </div>
                 <div id="tableList" class="admin-list table-list"></div>
+                <nav id="tablePagination" class="pagination admin-pagination" aria-label="Páginas de mesas"></nav>
               </section>
 
               <form id="tableForm" class="editor-card table-form-card">
@@ -332,36 +357,90 @@
                   </div>
                 </div>
                 <input name="id" type="hidden">
-                <div class="editor-fields two-col">
-                  <label><span>Link</span><input name="videoUrl" type="url" required placeholder="https://youtube.com/..."></label>
-                  <label><span>Mesa</span><input name="title" required placeholder="Nombre de la mesa/video"></label>
-                  <label><span>Fecha</span><input name="date" type="date"></label>
-                  <label>
-                    <span>Resultado</span>
-                    <select name="resultMode">
-                      <option value="single">Un ganador</option>
-                      <option value="two">2 vs 2 / dos ganadores</option>
-                      <option value="tie">Empate / nadie ganó</option>
-                    </select>
-                  </label>
-                  <label class="winner-field winner-one">
-                    <span>Ganador 1</span>
-                    <select name="winner" required></select>
-                  </label>
-                  <label class="winner-field winner-two" hidden>
-                    <span>Ganador 2</span>
-                    <select name="winner2"></select>
-                  </label>
-                </div>
-                <div class="participant-head">
-                  <div>
-                    <h4>Jugadores</h4>
-                    <p>Agrega cualquier cantidad de jugadores para esta mesa.</p>
+                <details class="table-edit-section">
+                  <summary>
+                    <span>
+                      <strong>Datos de mesa</strong>
+                      <small>Video, fecha y resultado</small>
+                    </span>
+                  </summary>
+                  <div class="editor-fields two-col">
+                    <label><span>Link</span><input name="videoUrl" type="url" required placeholder="https://youtube.com/..."></label>
+                    <label><span>Mesa</span><input name="title" required placeholder="Nombre de la mesa/video"></label>
+                    <label><span>Fecha</span><input name="date" type="date"></label>
+                    <label>
+                      <span>Resultado</span>
+                      <select name="resultMode">
+                        <option value="single">Un ganador</option>
+                        <option value="two">2 vs 2 / dos ganadores</option>
+                        <option value="tie">Empate / nadie ganó</option>
+                      </select>
+                    </label>
+                    <label class="winner-field winner-one">
+                      <span>Ganador 1</span>
+                      <select name="winner" required></select>
+                    </label>
+                    <label class="winner-field winner-two" hidden>
+                      <span>Ganador 2</span>
+                      <select name="winner2"></select>
+                    </label>
                   </div>
-                  <button id="addParticipant" class="admin-button secondary" type="button">Agregar Jugador</button>
-                </div>
-                <div id="participantList" class="participant-list"></div>
+                </details>
+                <details class="table-edit-section players-edit-section">
+                  <summary>
+                    <span>
+                      <strong>Jugadores</strong>
+                      <small>Comandantes, decks y links</small>
+                    </span>
+                    <button id="addParticipant" class="admin-button secondary" type="button">Agregar Jugador</button>
+                  </summary>
+                  <div id="participantList" class="participant-list"></div>
+                </details>
               </form>
+
+              <section class="editor-card player-manager-card">
+                <div class="editor-card-head">
+                  <div>
+                    <h3>Base de jugadores</h3>
+                    <p>Corrige nombres, usernames y fusiona duplicados sin perder mesas ni decks.</p>
+                  </div>
+                  <button id="savePlayer" class="admin-button" type="button">Guardar jugador</button>
+                </div>
+                <div class="player-manager-layout">
+                  <div>
+                    <label class="search">
+                      <span>Buscar jugador</span>
+                      <input id="playerSearchInput" type="search" placeholder="Nombre, username o comandante">
+                    </label>
+                    <div id="playerList" class="admin-list player-list"></div>
+                    <nav id="playerPagination" class="pagination admin-pagination" aria-label="Páginas de jugadores"></nav>
+                  </div>
+                  <div class="player-edit-panel">
+                    <div class="editor-fields two-col">
+                      <label>
+                        <span>Jugador a editar</span>
+                        <select id="playerSelect"></select>
+                      </label>
+                      <label>
+                        <span>Fusionar con</span>
+                        <select id="playerMergeSelect"></select>
+                      </label>
+                      <label><span>Nombre final</span><input id="playerNameInput" placeholder="Nombre público"></label>
+                      <label><span>Username</span><input id="playerHandleInput" placeholder="@usuario"></label>
+                      <label>
+                        <span>Rol</span>
+                        <select id="playerRoleInput">
+                          <option value="Invitado">Invitado</option>
+                          <option value="Invitada">Invitada</option>
+                          <option value="Host">Host</option>
+                        </select>
+                      </label>
+                      <label class="wide"><span>Alias conservados</span><input id="playerAliasesInput" placeholder="Pepe A., José A."></label>
+                    </div>
+                    <div id="playerDeckSummary" class="player-deck-summary"></div>
+                  </div>
+                </div>
+              </section>
             </div>
 
             <details class="advanced-json">
@@ -381,7 +460,7 @@
       </main>
     </div>
 
-    <dialog id="playerDialog" class="player-dialog">
+    <dialog id="playerDialog" class="player-dialog player-profile-dialog">
       <button id="closeDialog" class="icon-button" type="button" aria-label="Cerrar">x</button>
       <div id="dialogContent"></div>
     </dialog>
@@ -389,11 +468,22 @@
       <button id="closeGuildDialog" class="icon-button" type="button" aria-label="Cerrar">x</button>
       <div id="guildDialogContent"></div>
     </dialog>
+    <dialog id="commanderDialog" class="player-dialog commander-dialog" aria-labelledby="commanderDialogTitle">
+      <button id="closeCommanderDialog" class="icon-button" type="button" aria-label="Cerrar">x</button>
+      <div id="commanderDialogContent"></div>
+    </dialog>
+    <dialog id="matchDialog" class="player-dialog match-dialog" aria-labelledby="matchDialogTitle">
+      <button id="closeMatchDialog" class="icon-button" type="button" aria-label="Cerrar">x</button>
+      <div id="matchDialogContent"></div>
+    </dialog>
     <div id="cardPreview" class="card-preview" aria-hidden="true" hidden></div>
+    <div id="playerPreview" class="player-preview" role="tooltip" aria-hidden="true" hidden></div>
 
-    <script src="data.js"></script>
-    <script src="app.js"></script>
     <script src="firebase-config.js"></script>
+    <script src="data.js"></script>
+    <script src="derived-data.js"></script>
+    <script src="data-health.js"></script>
+    <script src="app.js"></script>
     <script type="module" src="admin.js"></script>
     <script>
       if ("serviceWorker" in navigator) {
