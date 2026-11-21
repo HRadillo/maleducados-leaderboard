@@ -27,6 +27,7 @@ const nodes = {
   playerHandle: document.querySelector("#playerHandleInput"),
   playerRole: document.querySelector("#playerRoleInput"),
   playerAliases: document.querySelector("#playerAliasesInput"),
+  playerMergeReview: document.querySelector("#playerMergeReview"),
   playerDeckSummary: document.querySelector("#playerDeckSummary"),
   savePlayer: document.querySelector("#savePlayer"),
   refreshDataHealth: document.querySelector("#refreshDataHealth"),
@@ -49,6 +50,8 @@ let playerQuery = "";
 let playerPage = 1;
 let selectedPlayerName = "";
 const playerPageSize = 6;
+let returnToHealth = false;
+let reviewedMerge = "";
 
 nodes.login.disabled = true;
 nodes.login.textContent = "Cargando Google...";
@@ -419,7 +422,7 @@ function parseSocialLine(line) {
   const clean = cleanDescriptionText(line);
   const handle = clean.match(/@[\w.\-]+/)?.[0] || "";
   if (!handle) return null;
-  const name = clean.split(/→|->|instagram|tiktok/i)[0].trim();
+  const name = clean.split(/→|->|instagram|tiktok|@/i)[0].replace(/[:\-–—]+\s*$/, "").trim();
   return { name, handle };
 }
 
@@ -447,12 +450,13 @@ function participantsFromDescription(description = "") {
       const numberedDeckLink = deckLinks.find((deck) => deck.deckNumber === index + 1);
       const orderedDeckLink = deckLinks[index];
       const deckLink = namedDeckLink || numberedDeckLink || orderedDeckLink;
-      const social = socials.find((item) => sameLooseName(item.name, participant.name));
+      const key = window.MaleducadosDerivedData.identityText;
+      const handles = uniqueText(socials.filter((item) => key(item.name) === key(participant.name)).map((item) => item.handle));
 
       return {
         ...emptyParticipant(),
         name: participant.name,
-        handle: social?.handle || "",
+        handle: handles.length === 1 ? handles[0] : "",
         commander: participant.commander,
         moxfield: deckLink?.isTruncated ? "" : deckLink?.url || ""
       };
@@ -530,7 +534,7 @@ function playerSuggestions() {
 
 function ensurePlayer(data, participant) {
   const name = participant.name.trim();
-  let player = findPlayerByName(data, name);
+  let player = findPlayerByName(data, name) || window.MaleducadosDerivedData.reviewPlayerIdentity(name, data);
 
   if (!player) {
     let id = slugify(name);
@@ -551,7 +555,7 @@ function ensurePlayer(data, participant) {
     data.players.push(player);
   }
 
-  if (participant.handle.trim()) player.handle = participant.handle.trim();
+  if (!player.handle && participant.handle.trim()) player.handle = participant.handle.trim();
   return player;
 }
 
@@ -716,7 +720,7 @@ function syncWinnerOptions(selectedWinner = "", selectedWinner2 = "") {
   const currentWinner2 = selectedWinner2 || fields.winner2.value;
   const options = rows
     .filter((participant) => participant.name)
-    .map((participant) => `<option value="${participant.id}">${participant.name}</option>`)
+    .map((participant) => `<option value="${escapeAttribute(participant.id)}">${escapeAttribute(participant.name)}</option>`)
     .join("");
 
   fields.winner.innerHTML = options;
@@ -754,17 +758,17 @@ function renderParticipantRows() {
       <details class="participant-row" data-participant-index="${index}" ${participant.collapsed ? "" : "open"}>
         <summary class="participant-row-head">
           <span class="participant-summary-main">
-            <strong>${participant.name || `Jugador ${index + 1}`}</strong>
-            <small>${participant.handle || "Sin username"}</small>
+            <strong>${escapeAttribute(participant.name || `Jugador ${index + 1}`)}</strong>
+            <small class="participant-handle-summary"></small>
           </span>
           <span class="participant-summary-meta">
-            <strong>${commanderDisplayFromParticipant(participant) || "Sin comandante"}</strong>
-            <small>${participant.colors?.length ? colorsToText(participant.colors) : participant.archetype || "Pendiente"}</small>
+            <strong>${escapeAttribute(commanderDisplayFromParticipant(participant) || "Sin comandante")}</strong>
+            <small>${escapeAttribute(participant.colors?.length ? colorsToText(participant.colors) : participant.archetype || "Pendiente")}</small>
           </span>
         </summary>
         <div class="editor-fields two-col">
           <label><span>Nombre</span><input name="participantName" list="playerSuggestions" placeholder="Nombre del jugador" value="${escapeAttribute(participant.name)}"></label>
-          <label><span>Username (opcional)</span><input name="participantHandle" placeholder="@usuario" value="${escapeAttribute(participant.handle)}"></label>
+          <label><span>Username (opcional)</span><input name="participantHandle" aria-describedby="participant-handle-${index}" placeholder="@usuario" value="${escapeAttribute(participant.handle)}"><small id="participant-handle-${index}" class="participant-handle-note"></small></label>
           <label class="wide"><span>Deck conocido</span><select name="knownDeck"><option value="">Rellenar manualmente</option></select></label>
           <label><span>Comandante</span><input name="participantCommander" placeholder="Tivit, Seller of Secrets" value="${escapeAttribute(participant.commander)}"></label>
           <label class="partner-toggle"><span>Partner</span><input name="participantHasPartner" type="checkbox" ${participant.partnerCommander ? "checked" : ""}><small>Usó dos comandantes</small></label>
@@ -785,31 +789,47 @@ function renderParticipantRows() {
     nodes.participantList.insertAdjacentHTML("beforebegin", '<datalist id="playerSuggestions"></datalist>');
   }
   document.querySelector("#playerSuggestions").innerHTML = playerSuggestions();
-  [...nodes.participantList.querySelectorAll(".participant-row")].forEach(updateKnownDeckOptions);
+  const data = getCurrentData();
+  nodes.participantList.querySelectorAll(".participant-row").forEach((row) => {
+    updateParticipantHandle(row, data);
+    updateKnownDeckOptions(row, data);
+  });
   syncWinnerOptions();
 }
 
-function updateKnownDeckOptions(row) {
-  const player = findPlayerByName(getCurrentData(), row.querySelector('[name="participantName"]').value);
+function updateParticipantHandle(row, data = getCurrentData()) {
+  const name = row.querySelector('[name="participantName"]').value;
+  const input = row.querySelector('[name="participantHandle"]');
+  const profile = window.MaleducadosDerivedData.reviewPlayerIdentity(name, data);
+  const saved = profile?.handle?.trim() || "";
+  const entered = input.value.trim();
+  const conflict = Boolean(saved && entered && saved.toLowerCase().replace(/^@/, "") !== entered.toLowerCase().replace(/^@/, ""));
+  input.placeholder = saved || "@usuario";
+  row.querySelector(".participant-handle-summary").textContent = conflict ? `${entered} · Revisar username` : entered || (saved ? `${saved} · Del perfil` : name.trim() ? "Sin username registrado" : "");
+  const note = row.querySelector(".participant-handle-note");
+  note.textContent = conflict ? `En el perfil: ${saved} · En esta mesa: ${entered}` : saved && !entered ? `${saved} · Del perfil` : "";
+  note.classList.toggle("handle-conflict", conflict);
+}
+
+function updateKnownDeckOptions(row, data = getCurrentData()) {
+  const player = window.MaleducadosDerivedData.reviewPlayerIdentity(row.querySelector('[name="participantName"]').value, data);
   const select = row.querySelector('[name="knownDeck"]');
   const current = select.value;
   select.innerHTML = '<option value="">Rellenar manualmente</option>';
 
-  if (player) {
+  if (player?.decks?.length) {
     select.insertAdjacentHTML("beforeend", player.decks.map((deck, index) =>
       `<option value="${index}">${escapeAttribute(deck.commander)} | ${escapeAttribute(deck.archetype || "Commander")}</option>`
     ).join(""));
-    if (player.handle && !row.querySelector('[name="participantHandle"]').value) {
-      row.querySelector('[name="participantHandle"]').value = player.handle;
-    }
   }
 
   select.value = [...select.options].some((option) => option.value === current) ? current : "";
 }
 
 function applyKnownDeck(row) {
-  const player = findPlayerByName(getCurrentData(), row.querySelector('[name="participantName"]').value);
-  const deck = player?.decks?.[Number(row.querySelector('[name="knownDeck"]').value)];
+  const player = window.MaleducadosDerivedData.reviewPlayerIdentity(row.querySelector('[name="participantName"]').value, getCurrentData());
+  const selection = row.querySelector('[name="knownDeck"]').value;
+  const deck = selection === "" ? null : player?.decks?.[Number(selection)];
   if (!deck) return;
 
   const partnerField = row.querySelector('[name="participantPartnerCommander"]');
@@ -974,6 +994,8 @@ function mergeDeckEntries(decks = []) {
 function playerDirectory() {
   const data = getCurrentData();
   const directory = new Map();
+  const derived = window.MaleducadosDerivedData;
+  const links = derived.linkedPlayerDirectory(data);
 
   function entryFor(name) {
     const key = nameKey(name);
@@ -993,18 +1015,26 @@ function playerDirectory() {
   }
 
   data.players.forEach((player) => {
-    const entry = entryFor(player.name || "");
+    const target = player.mergedInto ? links.get(derived.exactPlayerName(player.name)) : null;
+    if (player.mergedInto && !target) return;
+    const entry = entryFor(target?.name || player.name || "");
     if (!entry) return;
-    entry.handle ||= player.handle || "";
-    entry.role = player.role || entry.role;
+    if (!target) {
+      entry.handle ||= player.handle || "";
+      entry.role = player.role || entry.role;
+    } else {
+      entry.aliases.push(player.name);
+    }
     entry.aliases = uniqueText([...(entry.aliases || []), ...(player.aliases || [])]);
     entry.decks.push(...(player.decks || []));
   });
 
   tables(data).forEach((table) => {
     (table.participants || []).forEach((participant) => {
-      const entry = entryFor(participant.name || "");
+      const linked = links.get(derived.exactPlayerName(participant.name));
+      const entry = entryFor(linked?.name || participant.name || "");
       if (!entry) return;
+      if (linked && nameKey(participant.name) !== entry.key) entry.aliases.push(participant.name);
       entry.handle ||= participant.handle || "";
       entry.tables.add(table.id || table.title);
       entry.decks.push({
@@ -1087,6 +1117,7 @@ function renderPlayerForm(players) {
   nodes.playerRole.value = selected?.role || "Invitado";
   nodes.playerAliases.value = selected?.aliases?.join(", ") || "";
   nodes.savePlayer.disabled = !selected;
+  renderPlayerMergeReview();
 
   nodes.playerDeckSummary.innerHTML = selected
     ? `
@@ -1094,6 +1125,44 @@ function renderPlayerForm(players) {
       <div>${selected.decks.map((deck) => `<span>${escapeAttribute(deck.commander)} (${colorsToText(deck.colors) || "C"})</span>`).join("")}</div>
     `
     : '<p class="empty-state">Selecciona un jugador para editar.</p>';
+}
+
+function mergeReviewData(data, names) {
+  const health = window.MaleducadosDataHealth;
+  const records = health.playerNameRecords(data);
+  return names.map((name) => {
+    const key = window.MaleducadosDerivedData.exactPlayerName(name);
+    const record = records.get(key);
+    return { name, handles: [...(record?.handles || [])].sort(), tables: record?.tables || [] };
+  });
+}
+
+function renderPlayerMergeReview() {
+  const target = nodes.playerSelect.value;
+  const source = nodes.playerMergeSelect.value;
+  const review = nodes.playerMergeReview;
+  review.hidden = !source;
+  [nodes.playerName, nodes.playerHandle, nodes.playerRole, nodes.playerAliases].forEach((input) => { input.disabled = Boolean(source); });
+  nodes.savePlayer.textContent = source ? "Confirmar fusión" : "Guardar jugador";
+  if (!source) {
+    review.closest(".player-manager-card").querySelector(".editor-card-head").append(nodes.savePlayer);
+    review.replaceChildren();
+    reviewedMerge = "";
+    return;
+  }
+
+  const entries = mergeReviewData(getCurrentData(), [target, source]);
+  reviewedMerge = JSON.stringify(entries);
+  review.innerHTML = `<h4>Revisar fusión</h4><div class="merge-comparison">${entries.map((entry, index) => `
+    <section>
+      <small>${index === 0 ? "Perfil público" : "Nombre vinculado"}</small>
+      <strong>${escapeAttribute(entry.name)}</strong>
+      <span>${escapeAttribute(entry.handles.join(" · ") || "Sin username registrado")}</span>
+      <details><summary>${entry.tables.length} ${entry.tables.length === 1 ? "participación" : "participaciones"}</summary><ul>${entry.tables.map((table) =>
+        `<li>${escapeAttribute(table.title || "Partida sin título")}${table.date ? ` · ${escapeAttribute(table.date)}` : ""}</li>`
+      ).join("")}</ul></details>
+    </section>`).join("")}</div><p role="alert" class="merge-feedback"></p>`;
+  review.append(nodes.savePlayer);
 }
 
 function renderPlayerList() {
@@ -1133,6 +1202,7 @@ function renderTableForm() {
   fields.id.value = table?.id || "";
   fields.title.value = table?.title || "";
   fields.videoUrl.value = table?.videoUrl || "";
+  fields.videoUrl.required = !table;
   fields.date.value = formatDateInput(table?.date);
   fields.resultMode.value = table?.resultMode || (table?.winnerIds?.length > 1 ? "two" : "single");
 
@@ -1150,20 +1220,69 @@ function renderAdmin() {
   fillJsonEditor();
 }
 
+const healthFields = {
+  "missing-date": ["date", "Fecha", "date"],
+  "missing-youtube": ["videoUrl", "YouTube", "url"],
+  "invalid-youtube-url": ["videoUrl", "YouTube", "url"],
+  "unexpected-video-host": ["videoUrl", "YouTube", "url"],
+  "empty-moxfield": ["moxfield", "Moxfield", "url"],
+  "invalid-moxfield-url": ["moxfield", "Moxfield", "url"],
+  "unexpected-moxfield-host": ["moxfield", "Moxfield", "url"]
+};
+let healthEntries = [];
+
 function renderDataHealth() {
-  const audit = window.MaleducadosDataHealth?.auditData(getCurrentData());
+  const data = getCurrentData();
+  const audit = window.MaleducadosDataHealth?.auditData(data);
   if (!audit || !nodes.dataHealthSummary || !nodes.dataHealthIssues) return;
+  const open = new Set([...nodes.dataHealthIssues.querySelectorAll("details[open][data-severity]")].map((item) => item.dataset.severity));
+  healthEntries = audit.issues.map((issue) => ({ issue, table: data.tables?.[issue.tableIndex] }));
   const labels = { error: "Errores", warning: "Warnings", info: "Info" };
   nodes.dataHealthSummary.innerHTML = ["error", "warning", "info"]
     .map((severity) => `<span class="health-count ${severity}"><strong>${audit.counts[severity]}</strong>${labels[severity]}</span>`)
     .join("");
   nodes.dataHealthIssues.innerHTML = ["error", "warning", "info"].map((severity) => {
-    const issues = audit.issues.filter((issue) => issue.severity === severity);
+    const issues = healthEntries.map((entry, index) => ({ ...entry, index })).filter(({ issue }) => issue.severity === severity);
     if (!issues.length) return "";
-    return `<details class="health-group ${severity}"><summary>${labels[severity]} (${issues.length})</summary><ul>${issues.map((issue) => `
-      <li><strong>${escapeAttribute(issue.title)}</strong><span>${escapeAttribute(issue.detail || "")}</span></li>
-    `).join("")}</ul></details>`;
+    return `<details class="health-group ${severity}" data-severity="${severity}" ${open.has(severity) ? "open" : ""}><summary>${labels[severity]} (${issues.length})</summary><ul>${issues.map(({ issue, index, table }) => {
+      const context = [issue.tableTitle, issue.playerName].filter(Boolean).join(" · ");
+      const detail = String(issue.detail || "");
+      const field = healthFields[issue.code];
+      const record = issue.participantIndex === undefined ? table : table?.participants?.[issue.participantIndex];
+      const canOpen = table?.id && data.tables.filter((item) => item.id === table.id).length === 1;
+      const action = issue.playerNames
+        ? issue.playerNames.length > 1 ? "Revisar coincidencia" : "Editar jugador"
+        : field ? `Editar ${field[1]}` : canOpen ? "Abrir mesa" : "";
+      return `<li>
+        <div class="health-issue-copy"><strong>${escapeAttribute(issue.title)}</strong>
+          <span>${escapeAttribute(context || detail)}</span>
+          ${context && !detail.includes(issue.tableTitle) ? `<span>${escapeAttribute(detail)}</span>` : ""}
+        </div>
+        ${action ? `<button class="admin-button secondary health-action" type="button" data-health-index="${index}" ${field ? 'aria-expanded="false"' : ""}>${action}</button>` : ""}
+        ${field ? `<form class="health-repair" data-health-index="${index}" hidden>
+          <label><span>${field[1]}</span><input name="value" type="${field[2]}" value="${escapeAttribute(record?.[field[0]] || "")}" required></label>
+          <button class="admin-button" type="submit">Guardar</button><p role="status"></p>
+        </form>` : ""}
+      </li>`;
+    }).join("")}</ul></details>`;
   }).join("") || '<p class="empty-state">No se encontraron observaciones.</p>';
+}
+
+async function saveScopedChange(change) {
+  const email = currentUser?.email;
+  if (!firebaseApi || !email || email.toLowerCase() !== firebaseSetup.adminEmail.toLowerCase()) {
+    throw new Error("Inicia sesión con la cuenta autorizada antes de guardar.");
+  }
+  const { db, docRef, runTransaction, serverTimestamp } = firebaseApi;
+  const nextData = await runTransaction(db, async (transaction) => {
+    const snapshot = await transaction.get(docRef);
+    const data = snapshot.data()?.data;
+    if (!data) throw new Error("No encontré los datos guardados en Firebase.");
+    change(data);
+    transaction.update(docRef, { data, updatedAt: serverTimestamp(), updatedBy: email });
+    return data;
+  });
+  window.setLeaderboardData(nextData);
 }
 
 async function saveData(nextData, message = "Cambios guardados.") {
@@ -1234,6 +1353,7 @@ async function initFirebase() {
   const docRef = firestoreModule.doc(db, firebaseSetup.collectionName, firebaseSetup.documentId);
 
   firebaseApi = {
+    db,
     auth,
     provider: new authModule.GoogleAuthProvider(),
     signInWithPopup: authModule.signInWithPopup,
@@ -1243,6 +1363,7 @@ async function initFirebase() {
     onAuthStateChanged: authModule.onAuthStateChanged,
     getDoc: firestoreModule.getDoc,
     setDoc: firestoreModule.setDoc,
+    runTransaction: firestoreModule.runTransaction,
     serverTimestamp: firestoreModule.serverTimestamp,
     docRef
   };
@@ -1316,6 +1437,7 @@ nodes.settingsForm.addEventListener("submit", async (event) => {
 });
 
 nodes.newTable.addEventListener("click", () => {
+  returnToHealth = false;
   selectedTableId = "";
   editingFreshTable = true;
   tablePage = 1;
@@ -1340,6 +1462,7 @@ nodes.tableList.addEventListener("click", (event) => {
   const row = event.target.closest("[data-table-id]");
   if (!row) return;
 
+  returnToHealth = false;
   selectedTableId = row.dataset.tableId;
   editingFreshTable = false;
   renderAdmin();
@@ -1363,6 +1486,7 @@ nodes.playerList.addEventListener("click", (event) => {
   const row = event.target.closest("[data-player-name]");
   if (!row) return;
 
+  returnToHealth = false;
   selectedPlayerName = row.dataset.playerName;
   renderPlayerList();
 });
@@ -1370,6 +1494,94 @@ nodes.playerList.addEventListener("click", (event) => {
 nodes.playerSelect.addEventListener("change", (event) => {
   selectedPlayerName = event.target.value;
   renderPlayerList();
+});
+
+nodes.playerMergeSelect.addEventListener("change", renderPlayerMergeReview);
+
+function focusHealth() {
+  document.querySelector("#dataHealthTitle").focus();
+}
+
+nodes.dataHealthIssues.addEventListener("click", (event) => {
+  const button = event.target.closest(".health-action");
+  if (!button) return;
+  const { issue, table } = healthEntries[Number(button.dataset.healthIndex)];
+  const form = button.closest("li").querySelector(".health-repair");
+  if (form) {
+    form.hidden = !form.hidden;
+    button.setAttribute("aria-expanded", String(!form.hidden));
+    if (!form.hidden) form.elements.value.focus();
+    return;
+  }
+  returnToHealth = true;
+  if (issue.playerNames) {
+    const [target, source] = issue.playerNames;
+    selectedPlayerName = target;
+    renderPlayerList();
+    if (source) {
+      nodes.playerMergeSelect.value = source;
+      renderPlayerMergeReview();
+      nodes.playerMergeSelect.focus();
+    } else {
+      nodes.playerHandle.focus();
+    }
+    return;
+  }
+  selectedTableId = table.id;
+  editingFreshTable = true;
+  renderTableList();
+  renderTableForm();
+  const row = nodes.participantList.querySelector(`[data-participant-index="${issue.participantIndex}"]`);
+  if (row) {
+    row.closest(".table-edit-section").open = true;
+    row.open = true;
+    row.querySelector(issue.code === "missing-commander" ? '[name="participantCommander"]' : ".hydrate-commander").focus();
+  } else {
+    nodes.tableForm.elements.resultMode.closest("details").open = true;
+    nodes.tableForm.elements.resultMode.focus();
+  }
+});
+
+nodes.dataHealthIssues.addEventListener("submit", async (event) => {
+  const form = event.target.closest(".health-repair");
+  if (!form) return;
+  event.preventDefault();
+  const { issue, table } = healthEntries[Number(form.dataset.healthIndex)];
+  const [field] = healthFields[issue.code];
+  const value = form.elements.value.value.trim();
+  const status = form.querySelector('[role="status"]');
+  const health = window.MaleducadosDataHealth;
+  const domains = field === "moxfield" ? ["moxfield.com"] : ["youtube.com", "youtu.be"];
+  if (field !== "date" && !health.hostMatches(value, domains)) {
+    status.textContent = `Escribe una URL válida de ${field === "moxfield" ? "Moxfield" : "YouTube"}.`;
+    return;
+  }
+
+  const submit = form.querySelector('[type="submit"]');
+  submit.disabled = true;
+  try {
+    await saveScopedChange((data) => {
+      const matches = table.id ? (data.tables || []).filter((item) => item.id === table.id) : [];
+      const current = matches.length === 1 ? matches[0] : !table.id ? data.tables?.[issue.tableIndex] : null;
+      const previous = issue.participantIndex === undefined ? table : table.participants[issue.participantIndex];
+      const record = issue.participantIndex === undefined ? current : current?.participants?.[issue.participantIndex];
+      if (!current || (!table.id && (current.id || current.title !== table.title || current.date !== table.date || current.videoUrl !== table.videoUrl)) ||
+          !record || record.id !== previous.id || record.name !== previous.name || record[field] !== previous[field]) {
+        throw new Error("El registro cambió. Actualiza el editor antes de guardar.");
+      }
+      record[field] = value;
+    });
+    renderDataHealth();
+    renderTableList();
+    renderPlayerManager();
+    fillJsonEditor();
+    setMessage("Corrección guardada.", "success");
+    focusHealth();
+  } catch (error) {
+    status.textContent = error.message;
+  } finally {
+    submit.disabled = false;
+  }
 });
 
 nodes.addParticipant.addEventListener("click", (event) => {
@@ -1380,7 +1592,10 @@ nodes.addParticipant.addEventListener("click", (event) => {
   renderParticipantRows();
 });
 
-nodes.participantList.addEventListener("input", () => {
+nodes.participantList.addEventListener("input", (event) => {
+  if (["participantName", "participantHandle"].includes(event.target.name)) {
+    updateParticipantHandle(event.target.closest(".participant-row"));
+  }
   syncWinnerOptions();
 });
 
@@ -1389,8 +1604,11 @@ nodes.tableForm.elements.resultMode.addEventListener("change", () => {
 });
 
 nodes.tableForm.elements.videoUrl.addEventListener("change", async (event) => {
-  const video = await fetchYouTubeVideo(event.target.value.trim());
-  if (!video) return;
+  const url = event.target.value.trim();
+  if (selectedTableId) return;
+  const draft = draftParticipants;
+  const video = await fetchYouTubeVideo(url);
+  if (!video || selectedTableId || draft !== draftParticipants || event.target.value.trim() !== url) return;
   if (!nodes.tableForm.title.value.trim()) nodes.tableForm.title.value = video.title;
   if (!nodes.tableForm.date.value) nodes.tableForm.date.value = video.publishedAt;
 
@@ -1579,6 +1797,13 @@ nodes.tableForm.addEventListener("submit", async (event) => {
     return;
   }
 
+  const handleConflicts = participants.filter((participant) => {
+    const profile = window.MaleducadosDerivedData.reviewPlayerIdentity(participant.name, data);
+    const normalize = (handle) => handle?.trim().toLowerCase().replace(/^@/, "");
+    return participant.handle && profile?.handle && normalize(participant.handle) !== normalize(profile.handle);
+  });
+  if (handleConflicts.length && !window.confirm(`Los usernames de ${handleConflicts.map((participant) => participant.name).join(", ")} son distintos a los de sus perfiles. ¿Guardar estos usernames sólo para esta mesa?`)) return;
+
   setMessage("Buscando comandantes en Scryfall...", "info");
   participants = await Promise.all(participants.map(async (participant) => {
     const commander = commanderDisplayFromParticipant(participant);
@@ -1586,6 +1811,7 @@ nodes.tableForm.addEventListener("submit", async (event) => {
     const previousCards = commanderPartsFromParticipant(participant);
     const { collapsed, ...cleanParticipant } = participant;
     const cards = card.cards.map((item, index) => ({
+      ...previousCards[index],
       name: item.name || previousCards[index]?.name || splitCommanderNames(commander)[index] || "",
       colors: item.colors.length ? item.colors : previousCards[index]?.colors || [],
       cardImage: item.image || previousCards[index]?.cardImage || "",
@@ -1604,6 +1830,7 @@ nodes.tableForm.addEventListener("submit", async (event) => {
   }));
 
   const nextTable = {
+    ...existingTable,
     id: fields.id.value || `mesa-${Date.now()}`,
     title: fields.title.value.trim(),
     date: fields.date.value.trim(),
@@ -1632,6 +1859,10 @@ nodes.tableForm.addEventListener("submit", async (event) => {
   editingFreshTable = false;
   tablePage = 1;
   await saveData(data, "Mesa guardada.");
+  if (returnToHealth) {
+    returnToHealth = false;
+    focusHealth();
+  }
 });
 
 nodes.deleteTable.addEventListener("click", async () => {
@@ -1650,68 +1881,72 @@ nodes.deleteTable.addEventListener("click", async () => {
 });
 
 nodes.savePlayer.addEventListener("click", async () => {
-  const data = getCurrentData();
   const selectedName = nodes.playerSelect.value.trim();
   const mergeName = nodes.playerMergeSelect.value.trim();
   const finalName = nodes.playerName.value.trim();
   const finalHandle = nodes.playerHandle.value.trim();
   const finalRole = nodes.playerRole.value;
-  const sourceNames = uniqueText([selectedName, mergeName]);
+
+  if (mergeName) {
+    const review = reviewedMerge;
+    if (!review || !window.confirm(`¿Vincular “${mergeName}” con el perfil público “${selectedName}”?`)) return;
+    nodes.savePlayer.disabled = true;
+    try {
+      await saveScopedChange((latest) => {
+        if (JSON.stringify(mergeReviewData(latest, [selectedName, mergeName])) !== review) {
+          throw new Error("Los perfiles cambiaron. Actualiza el editor y vuelve a revisar la coincidencia.");
+        }
+        window.MaleducadosDataHealth.linkPlayerIdentity(latest, selectedName, mergeName);
+      });
+      renderAdmin();
+      setMessage("Identidades vinculadas. El historial se conservó.", "success");
+      if (returnToHealth) focusHealth();
+      returnToHealth = false;
+    } catch (error) {
+      const feedback = nodes.playerMergeReview.querySelector(".merge-feedback");
+      if (feedback) feedback.textContent = error.message;
+      setMessage(error.message, "error");
+    } finally {
+      nodes.savePlayer.disabled = false;
+    }
+    return;
+  }
 
   if (!selectedName || !finalName) {
     setMessage("Selecciona un jugador y escribe el nombre final.", "error");
     return;
   }
 
-  if (mergeName && !window.confirm(`¿Fusionar “${selectedName}” y “${mergeName}” bajo “${finalName}”? Las mesas históricas conservarán sus participaciones bajo esa identidad.`)) return;
-
-  const sourceKeys = new Set(sourceNames.map(nameKey));
-  const finalKey = nameKey(finalName);
-  const aliases = uniqueText([
-    ...nodes.playerAliases.value.split(","),
-    ...sourceNames.filter((name) => nameKey(name) !== finalKey)
-  ]);
-  const directoryDecks = playerDirectory()
-    .filter((player) => sourceKeys.has(nameKey(player.name)) || nameKey(player.name) === finalKey)
-    .flatMap((player) => player.decks || []);
-  const matchedPlayers = data.players.filter((player) => sourceKeys.has(nameKey(player.name)) || nameKey(player.name) === finalKey);
-  const mergedDecks = mergeDeckEntries([...matchedPlayers.flatMap((player) => player.decks || []), ...directoryDecks]);
-  const basePlayer = matchedPlayers[0] || {
-    id: slugify(finalName) || `jugador-${Date.now()}`,
-    signature: "",
-    wins: 0,
-    losses: 0,
-    appearances: 0,
-    colors: [],
-    decks: []
-  };
-
-  tables(data).forEach((table) => {
-    (table.participants || []).forEach((participant) => {
-      if (!sourceKeys.has(nameKey(participant.name)) && nameKey(participant.name) !== finalKey) return;
-      participant.name = finalName;
-      if (finalHandle) participant.handle = finalHandle;
+  const key = window.MaleducadosDerivedData.exactPlayerName;
+  const expected = getCurrentData().players.filter((player) => key(player.name) === key(selectedName));
+  const aliases = uniqueText([...nodes.playerAliases.value.split(","), ...(key(selectedName) !== key(finalName) ? [selectedName] : [])]);
+  nodes.savePlayer.disabled = true;
+  try {
+    await saveScopedChange((data) => {
+      const matches = data.players.filter((player) => key(player.name) === key(selectedName));
+      const records = window.MaleducadosDataHealth.playerNameRecords(data);
+      if (matches.length > 1 || matches[0]?.mergedInto || matches.length !== expected.length ||
+          ["id", "name", "handle", "role"].some((field) => matches[0]?.[field] !== expected[0]?.[field]) ||
+          JSON.stringify(matches[0]?.aliases) !== JSON.stringify(expected[0]?.aliases)) {
+        throw new Error("El perfil cambió o tiene registros duplicados. Actualiza el editor y vuelve a revisar.");
+      }
+      if (key(selectedName) !== key(finalName) && records.has(key(finalName))) {
+        throw new Error("Ya existe ese nombre. Revisa ambos registros con Fusionar con.");
+      }
+      const profile = matches[0] || { id: `jugador-${crypto.randomUUID()}`, decks: [], wins: 0, losses: 0, appearances: 0, colors: [] };
+      Object.assign(profile, { name: finalName, handle: finalHandle, role: finalRole, aliases });
+      if (!matches.length) data.players.push(profile);
     });
-  });
-
-  data.players = data.players.filter((player) => !sourceKeys.has(nameKey(player.name)) && nameKey(player.name) !== finalKey);
-  const nextPlayer = {
-    ...basePlayer,
-    id: basePlayer.id || slugify(finalName),
-    name: finalName,
-    handle: finalHandle || basePlayer.handle || "",
-    role: finalRole,
-    aliases,
-    decks: mergedDecks.length ? mergedDecks : basePlayer.decks || []
-  };
-  data.players.push(nextPlayer);
-  recomputeAll(data);
-
-  selectedPlayerName = finalName;
-  playerQuery = "";
-  nodes.playerSearch.value = "";
-  playerPage = 1;
-  await saveData(data, mergeName ? "Jugadores fusionados." : "Jugador actualizado.");
+    selectedPlayerName = finalName;
+    renderAdmin();
+    setMessage("Jugador actualizado.", "success");
+    if (returnToHealth) focusHealth();
+    returnToHealth = false;
+  } catch (error) {
+    setMessage(error.message, "error");
+  } finally {
+    nodes.savePlayer.disabled = false;
+  }
 });
 
 nodes.loadJson.addEventListener("click", fillJsonEditor);

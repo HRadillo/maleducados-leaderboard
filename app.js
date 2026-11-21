@@ -82,8 +82,11 @@
     totalGames: document.querySelector("#totalGames"),
     uniquePlayerCount: document.querySelector("#uniquePlayerCount"),
     uniqueCommanderCount: document.querySelector("#uniqueCommanderCount"),
-    hostGuestScore: document.querySelector("#hostGuestScore"),
-    hostGuestRate: document.querySelector("#hostGuestRate"),
+    rivalry: document.querySelector(".rivalry-metric"),
+    rivalryHostArc: document.querySelector("#rivalryHostArc"),
+    rivalryTotal: document.querySelector("#rivalryTotal"),
+    rivalryHostWins: document.querySelector("#rivalryHostWins"),
+    rivalryGuestWins: document.querySelector("#rivalryGuestWins"),
     topCommanderMetric: document.querySelector("#topCommanderMetric"),
     topCommanderName: document.querySelector("#topCommanderName"),
     topCommanderMeta: document.querySelector("#topCommanderMeta"),
@@ -94,6 +97,7 @@
     globalResults: document.querySelector("#globalSearchResults"),
     socialLinks: document.querySelector("#socialLinks"),
     guildPlayedStats: document.querySelector("#guildPlayedStats"),
+    metaChartTotal: document.querySelector("#metaChartTotal"),
     guildWinStats: document.querySelector("#guildWinStats"),
     guildRateStats: document.querySelector("#guildRateStats"),
     rows: document.querySelector("#leaderboardRows"),
@@ -124,6 +128,9 @@
     matchDialogContent: document.querySelector("#matchDialogContent"),
     closeMatchDialog: document.querySelector("#closeMatchDialog"),
     cardPreview: document.querySelector("#cardPreview"),
+    cardDialog: document.querySelector("#cardDialog"),
+    closeCardDialog: document.querySelector("#closeCardDialog"),
+    fullCardContent: document.querySelector("#fullCardContent"),
     playerPreview: document.querySelector("#playerPreview")
   };
 
@@ -351,11 +358,6 @@
     return normalizeColors(colors) || "C";
   }
 
-  function rateColor(rate) {
-    const hue = Math.round((rate / 100) * 138);
-    return `hsl(${hue}, 72%, 64%)`;
-  }
-
   function progressColor(rate) {
     const clamped = Math.min(100, Math.max(0, rate));
     const hue = Math.round((clamped / 100) * 138);
@@ -425,21 +427,14 @@
     `;
   }
 
-  function commanderLink(deck) {
-    const parts = commanderParts(deck);
-    const links = parts.map((part) => {
-      const href = part.cardUrl || `https://scryfall.com/search?as=grid&order=name&q=!%22${encodeURIComponent(part.name || "Commander")}%22`;
-      return `<a class="commander-link" href="${href}" target="_blank" rel="noreferrer" data-card-image="${escapeAttribute(part.cardImage)}" data-card-url="${escapeAttribute(part.cardUrl)}" data-card-name="${escapeAttribute(part.name)}" title="Ver carta en Scryfall">${escapeAttribute(part.name)}</a>`;
-    }).join('<span class="partner-plus" aria-hidden="true">+</span>');
-    return `<span class="commander-stack ${parts.length > 1 ? "is-partner" : ""}">${links}${parts.length > 1 ? '<span class="partner-chip">Partner</span>' : ""}</span>`;
+  function cardAttributes(part) {
+    return `data-card-image="${escapeAttribute(safeExternalUrl(part.cardImage))}" data-card-url="${escapeAttribute(safeExternalUrl(part.cardUrl))}" data-card-name="${escapeAttribute(part.name)}" aria-label="Ver carta completa de ${escapeAttribute(part.name)}" aria-haspopup="dialog"`;
   }
 
-  function deckCommanderLink(deck) {
+  function commanderLink(deck) {
     const parts = commanderParts(deck);
-    const links = parts.map((part) => {
-      const href = part.cardUrl || deck.moxfield || "#";
-      return `<a class="commander-link" href="${href}" target="_blank" rel="noreferrer" data-card-image="${escapeAttribute(part.cardImage)}" data-card-url="${escapeAttribute(part.cardUrl)}" data-card-name="${escapeAttribute(part.name)}" title="Abrir carta o lista">${escapeAttribute(part.name)}</a>`;
-    }).join('<span class="partner-plus" aria-hidden="true">+</span>');
+    const links = parts.map((part) => `<button type="button" class="commander-link full-card-trigger" ${cardAttributes(part)}>${escapeAttribute(part.name)}</button>`)
+      .join('<span class="partner-plus" aria-hidden="true">+</span>');
     return `<span class="commander-stack ${parts.length > 1 ? "is-partner" : ""}">${links}${parts.length > 1 ? '<span class="partner-chip">Partner</span>' : ""}</span>`;
   }
 
@@ -493,6 +488,12 @@
     if (["horacio radillo", "horacio r", "horacio r."].includes(normalized)) return "Horacio R.";
     if (["alan villegas", "alan v", "alan v."].includes(normalized)) return "Alan V.";
     return name.trim();
+  }
+
+  function publicPlayerIdentity(name) {
+    const derived = window.MaleducadosDerivedData;
+    derivedDataCache.playerDirectory ||= derived.playerDirectory(data);
+    return derived.resolvePlayerIdentity(name, data, derivedDataCache.playerDirectory);
   }
 
   function canonicalPlayerKey(name = "") {
@@ -558,10 +559,10 @@
       title: table.title || "Última mesa",
       date: table.date || "Último estreno",
       winner: tableWinnerSummary(table),
-      winners: winners.map((winner) => ({
-        id: slugify(canonicalPlayerName(winner.name || "jugador")),
-        name: canonicalPlayerName(winner.name || "")
-      })),
+      winners: winners.map((winner) => {
+        const identity = publicPlayerIdentity(winner.name);
+        return { id: identity.playerId, name: identity.displayedName };
+      }),
       deck: primaryWinner ? commanderDisplay(primaryWinner) : "",
       videoUrl: table.videoUrl || data.socials[0].url,
       colors: primaryWinner ? commanderColorIdentity(primaryWinner) : [],
@@ -773,7 +774,7 @@
               </div>
               ${item.key === "C" ? '<span class="mana-row"><span class="mana">C</span></span>' : item.key === "?" ? '<span class="mana-row"><span class="mana unknown">?</span></span>' : manaPips(item.key.split(""))}
               <div class="guild-bar" aria-label="${guildName(item.key)} ${label}: ${value}${metric === "rate" ? "%" : ""}">
-                <span style="width: ${width}%; background: ${progressColor(width)}"></span>
+                <span style="width: ${width}%; --bar-fill: ${progressColor(width)}" ${width ? "" : "hidden"}></span>
               </div>
               ${metric === "rate" ? `<small class="meta-sample">${item.decidedGames} resultados decididos</small>` : ""}
             </div>
@@ -873,8 +874,10 @@
     const hostWins = players.filter((player) => player.role === "Host").reduce((total, player) => total + player.wins, 0);
     const guestWins = players.filter((player) => player.role !== "Host").reduce((total, player) => total + player.wins, 0);
     const rivalryTotal = hostWins + guestWins;
-    const hostRate = rivalryTotal ? Math.round((hostWins / rivalryTotal) * 100) : 0;
-    const guestRate = rivalryTotal ? 100 - hostRate : 0;
+    const hostShare = rivalryTotal ? 100 * hostWins / rivalryTotal : 0;
+    const hostTenths = Math.round(hostShare * 10);
+    const hostRate = hostTenths / 10;
+    const guestRate = rivalryTotal ? (1000 - hostTenths) / 10 : 0;
     const latestTable = latestTablePayload();
     const topCommander = [...commanders].sort((a, b) => b.appearancesCount - a.appearancesCount)[0];
     const leader = [...players].sort(leaderboardCompare)[0];
@@ -901,8 +904,11 @@
     elements.totalGames.textContent = tableRows.length;
     elements.uniquePlayerCount.textContent = players.length;
     elements.uniqueCommanderCount.textContent = commanders.length;
-    elements.hostGuestScore.textContent = `${hostWins}-${guestWins}`;
-    elements.hostGuestRate.textContent = `Hosts ${hostRate}% | Invitados ${guestRate}%`;
+    elements.rivalry.dataset.hasWins = String(rivalryTotal > 0);
+    elements.rivalryHostArc.setAttribute("stroke-dasharray", `${hostShare} ${100 - hostShare}`);
+    elements.rivalryTotal.textContent = rivalryTotal;
+    elements.rivalryHostWins.textContent = `${hostWins} · ${hostRate}%`;
+    elements.rivalryGuestWins.textContent = `${guestWins} · ${guestRate}%`;
     elements.topCommanderName.textContent = topCommander?.commanderDisplay || "Sin registro";
     elements.topCommanderMeta.textContent = topCommander ? `${topCommander.appearancesCount} apariciones` : "";
     elements.topCommanderMetric.dataset.commanderKey = topCommander?.commanderGroupKey || "";
@@ -922,7 +928,27 @@
     const byWins = [...stats].sort((a, b) => b.wins - a.wins || b.appearances - a.appearances || guildName(a.key).localeCompare(guildName(b.key)));
     const byRate = [...stats].filter((item) => item.decidedGames > 0).sort((a, b) => b.winRate - a.winRate || b.decidedGames - a.decidedGames || guildName(a.key).localeCompare(guildName(b.key)));
 
-    elements.guildPlayedStats.innerHTML = renderGuildStatList(byPlayed, "appearances", "apariciones");
+    const total = byPlayed.reduce((sum, item) => sum + item.appearances, 0);
+    elements.metaChartTotal.textContent = `${total} participaciones · Histórico`;
+    const renderRows = (items) => items.map((item) => {
+      const width = 100 * item.appearances / byPlayed[0].appearances;
+      return `
+      <li>
+        <button type="button" class="meta-chart-row" data-guild-key="${item.key}" aria-haspopup="dialog">
+          <span class="meta-chart-name">${guildName(item.key)}</span>
+          ${item.key === "?" ? '<span class="mana-row"><span class="mana unknown">?</span></span>'
+            : item.key === "C" ? '<span class="mana-row"><span class="mana">C</span></span>' : manaPips(item.key.split(""))}
+          <span class="meta-chart-track" aria-hidden="true"><span style="width: ${width}%; --bar-fill: ${progressColor(width)}"></span></span>
+          <strong>${item.appearances}</strong>
+          <span class="meta-chart-arrow" aria-hidden="true">›</span>
+        </button>
+      </li>`;
+    }).join("");
+    elements.guildPlayedStats.innerHTML = total ? `
+      <ol class="meta-chart-list">${renderRows(byPlayed.slice(0, 6))}</ol>
+      ${byPlayed.length > 6 ? `<details class="meta-chart-more"><summary>Ver las ${byPlayed.length - 6} identidades restantes</summary>
+        <ol class="meta-chart-list" start="7">${renderRows(byPlayed.slice(6))}</ol></details>` : ""}
+      ` : '<p class="empty-state">Todavía no hay participaciones registradas.</p>';
     elements.guildWinStats.innerHTML = renderGuildStatList(byWins, "wins", "victorias");
     elements.guildRateStats.innerHTML = renderGuildStatList(byRate, "rate", "win rate");
   }
@@ -982,7 +1008,7 @@
     elements.rows.innerHTML = page.items
       .map((player, index) => {
         const rate = winRate(player);
-        const color = rateColor(rate);
+        const color = progressColor(rate);
         const rank = leaderboardRanks.get(player.id) || page.start + index + 1;
         return `
           <tr class="rank-row ${guildRankClass(rank - 1)}">
@@ -1001,7 +1027,7 @@
             <td data-label="Losses"><strong>${player.losses}</strong></td>
             <td data-label="Win rate">
               <strong>${rate}%</strong>
-              <div class="rate-bar" aria-hidden="true"><span style="width: ${rate}%; background: ${color}"></span></div>
+              <div class="rate-bar" aria-hidden="true"><span style="width: ${rate}%; --bar-fill: ${color}" ${rate ? "" : "hidden"}></span></div>
             </td>
             <td data-label="Comandantes">${player.commanderCount}</td>
           </tr>
@@ -1097,7 +1123,7 @@
               ${visiblePlayers.map((appearance) => `
                 <div class="match-roster-row">
                   <span>${escapeAttribute(appearance.displayedPlayerName || "Jugador sin nombre")}</span>
-                  <small>${escapeAttribute(appearance.commanderDisplay || "Sin comandante")}</small>
+                  <small>${commanderGroupButton(appearance)}</small>
                 </div>
               `).join("")}
               ${remainingPlayers > 0 ? `<p>+${remainingPlayers} participantes</p>` : ""}
@@ -1183,11 +1209,12 @@
       <div class="commander-art commander-art-${context} ${commanders.length > 1 ? "is-pair" : ""}" aria-label="${escapeAttribute(group.commanderDisplay)}">
         ${commanders.map((commander) => {
           const image = safeExternalUrl(commander.cardImage);
+          const tag = context === "detail" ? "button" : "span";
           return `
-            <span class="commander-art-panel">
+            <${tag} class="commander-art-panel" ${tag === "button" ? `type="button" ${cardAttributes(commander)}` : ""}>
               <span class="commander-art-fallback" aria-hidden="true">${commanderInitials(commander.name)}</span>
               ${image ? `<img src="${escapeAttribute(image)}" alt="${escapeAttribute(commander.name)}" loading="lazy">` : ""}
-            </span>
+            </${tag}>
           `;
         }).join("")}
       </div>
@@ -1452,38 +1479,137 @@
   function showGuild(guildKey) {
     if (elements.commanderDialog.open) elements.commanderDialog.close();
     if (elements.matchDialog.open) elements.matchDialog.close();
-    const decks = recordedDecks()
-      .filter((deck) => guildKeyForDeck(deck) === guildKey)
-      .sort((a, b) => b.wins - a.wins || deckWinRate(b) - deckWinRate(a) || commanderDisplay(a).localeCompare(commanderDisplay(b)));
+    const model = derivedModel();
+    const stats = model.colorStats.find((item) => item.key === guildKey);
+    if (!stats) return;
+    const rows = model.appearances
+      .filter((appearance) => window.MaleducadosDerivedData.appearanceColorKey(appearance) === guildKey)
+      .sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+    const matches = new Map(model.matches.map((match) => [match.matchKey, match]));
 
     elements.guildDialogContent.innerHTML = `
       <div class="dialog-hero">
-        <span class="guild-rank rank-1">${shortColorLabel(guildKey === "C" ? [] : guildKey.split(""))}</span>
+        <span class="guild-rank rank-1">${escapeAttribute(guildKey)}</span>
         <div>
-          <span class="section-kicker">Guild</span>
+          <span class="section-kicker">Identidad de color</span>
           <h2>${guildName(guildKey)}</h2>
-          <p class="empty-state">${guildKey === "C" ? "Sin color" : guildKey} | ${decks.length} decks registrados</p>
-          ${guildKey === "C" ? '<span class="mana-row"><span class="mana">C</span></span>' : manaPips(guildKey.split(""))}
+          <p>${stats.appearances} participaciones · ${stats.wins} victorias · ${stats.losses} derrotas · ${stats.ties} empates</p>
+          <p>${stats.decidedGames ? `WR ${stats.winRate}% · ${stats.decidedGames} resultados decididos` : "Sin resultados decididos"}</p>
         </div>
       </div>
       <div class="dialog-body guild-deck-list">
-        ${decks.length ? decks.map((deck) => `
+        ${rows.map((appearance) => `
           <article class="dialog-deck">
             <div>
-              <h3>${deckCommanderLink(deck)}</h3>
-              <p class="empty-state">${playerNameButton({ id: deck.playerId, name: deck.player })} | ${deck.archetype} | ${deck.wins}-${deck.losses}</p>
-              ${manaPips(deck.colors)}
+              <h3>${commanderGroupButton(appearance)}</h3>
+              <p>${playerNameButton({ id: appearance.playerId, name: appearance.displayedPlayerName })} · ${appearance.ties ? "Empate" : appearance.wins ? "Victoria" : "Derrota"}</p>
             </div>
-            <div class="deck-actions">
-              <a class="deck-link" href="${deck.moxfield}" target="_blank" rel="noreferrer">Moxfield</a>
-              <a class="deck-link" href="${deck.videoUrl || data.socials[0].url}" target="_blank" rel="noreferrer">Watch Video</a>
-            </div>
+            ${matchLinkButton(matches.get(appearance.matchKey))}
           </article>
-        `).join("") : '<p class="empty-state">Todavía no hay decks registrados con estos colores.</p>'}
+        `).join("")}
       </div>
     `;
 
     elements.guildDialog.showModal();
+  }
+
+  function initWinnerFlame() {
+    const canvas = document.querySelector("#winnerFlame");
+    const ctx = canvas?.getContext("2d");
+    if (!ctx) return;
+
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+    ctx.scale(2, 2);
+    const glow = ctx.createRadialGradient(80, 130, 6, 80, 130, 76);
+    glow.addColorStop(0, "rgba(169, 77, 244, .65)");
+    glow.addColorStop(.52, "rgba(148, 49, 211, .27)");
+    glow.addColorStop(1, "rgba(111, 38, 165, 0)");
+
+    const outline = [
+      [83, 166], [58, 163], [35, 145], [34, 129], [51, 107], [43, 89],
+      [56, 72], [82, 56], [99, 33], [108, 47], [96, 72], [101, 94],
+      [117, 88], [129, 111], [123, 140], [104, 162]
+    ];
+    const base = 166;
+    const layers = [
+      { width: 1, height: 1, speed: 1.95, phase: .3, colors: ["#ff8b55", "#ec4373", "#a92bce", "#6d2dc4"] },
+      { width: .72, height: .80, speed: 2.74, phase: 2.4, colors: ["#ffa266", "#ff5c60", "#d33cdc", "#8e37e9"] },
+      { width: .46, height: .57, speed: 3.53, phase: 4.7, colors: ["#ffbe85", "#fb759c", "#b948ec"] }
+    ].map(({ colors, ...layer }) => {
+      const fill = ctx.createLinearGradient(0, base - 133 * layer.height, 0, base);
+      colors.forEach((color, index) => fill.addColorStop(index / (colors.length - 1), color));
+      return { ...layer, fill };
+    });
+
+    function ribbon(t, { width, height, speed, phase, fill }) {
+      // The waves travel up each contour at a different speed and keep the base anchored.
+      const points = outline.map(([x, y]) => {
+        const lift = (base - y) / 133;
+        const flow = t * speed - lift * 5 + phase;
+        const sway = Math.sin(flow) * 14 + Math.sin(flow * 1.61 + phase) * 7;
+        const ripple = Math.sin(t * speed * .71 - lift * 8 + x * .055 + phase) * 8;
+        return [
+          80 + ((x - 80) + lift * sway + lift * ripple) * width,
+          base - (base - y - lift * Math.sin(flow * 1.22 + x * .038) * 12) * height
+        ];
+      });
+      ctx.fillStyle = fill;
+      ctx.beginPath();
+      ctx.moveTo(...points[0]);
+      points.forEach(([x, y], i) => {
+        const [px, py] = points.at(i - 1);
+        const [nx, ny] = points[(i + 1) % points.length];
+        const [fx, fy] = points[(i + 2) % points.length];
+        ctx.bezierCurveTo(x + (nx - px) / 6, y + (ny - py) / 6,
+          nx - (fx - x) / 6, ny - (fy - y) / 6, nx, ny);
+      });
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    function paint(t) {
+      ctx.clearRect(0, 0, 160, 192);
+      ctx.fillStyle = glow;
+      ctx.fillRect(0, 0, 160, 192);
+      layers.forEach((layer) => ribbon(t, layer));
+      for (let i = 0; i < 7; i += 1) {
+        const age = (t * (.42 + i * .025) + i * .33) % 1;
+        ctx.globalAlpha = Math.sin(age * Math.PI) * .78;
+        ctx.fillStyle = i % 2 === 0 ? "#c27cf3" : "#ff8c64";
+        ctx.beginPath();
+        ctx.ellipse(79 + Math.sin(age * 5 + i * 2) * (15 + age * 31), 142 - age * (89 + i * 5), 1.1, 2.8 - age * 1.4, .4, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+    }
+
+    let frame = 0;
+    let visible = false;
+    let time = .65;
+    let lastPaint = null;
+    function animate(now) {
+      lastPaint ??= now;
+      if (now - lastPaint >= 30) {
+        time += Math.min(now - lastPaint, 100) / 1000;
+        paint(time);
+        lastPaint = now;
+      }
+      frame = requestAnimationFrame(animate);
+    }
+    function sync() {
+      cancelAnimationFrame(frame);
+      lastPaint = null;
+      if (visible && !document.hidden && !reducedMotion.matches) frame = requestAnimationFrame(animate);
+    }
+    paint(time);
+    sync();
+    const observer = new IntersectionObserver(([entry]) => {
+      visible = entry.isIntersecting;
+      sync();
+    });
+    observer.observe(canvas);
+    reducedMotion.addEventListener("change", sync);
+    document.addEventListener("visibilitychange", sync);
   }
 
   function render() {
@@ -1616,6 +1742,13 @@
   });
 
   document.addEventListener("click", (event) => {
+    hideCardPreview();
+    const cardTrigger = event.target.closest("[data-card-name]");
+    if (cardTrigger) {
+      showFullCard(cardTrigger);
+      return;
+    }
+
     const navTarget = event.target.closest("[data-nav-target]");
     if (navTarget) {
       window.location.hash = navTarget.dataset.navTarget;
@@ -1677,6 +1810,11 @@
       return;
     }
     if (event.target.matches?.(".commander-art img")) event.target.remove();
+    if (event.target.matches?.(".full-card-image")) {
+      const fallback = document.createElement("p");
+      fallback.textContent = "Imagen no disponible.";
+      event.target.replaceWith(fallback);
+    }
   }, true);
 
   function movePlayerPreview(event, trigger) {
@@ -1744,74 +1882,96 @@
     if (event.target.closest("[data-player-preview]")) hidePlayerPreview();
   });
 
-  function moveCardPreview(event) {
-    const offset = 18;
-    const previewWidth = 260;
-    const previewHeight = 364;
-    const left = Math.min(event.clientX + offset, window.innerWidth - previewWidth - offset);
-    const top = Math.min(event.clientY + offset, window.innerHeight - previewHeight - offset);
-    elements.cardPreview.style.transform = `translate(${left}px, ${top}px)`;
+  function cardFromTrigger(trigger) {
+    return { name: trigger.dataset.cardName, cardImage: trigger.dataset.cardImage, cardUrl: trigger.dataset.cardUrl };
   }
 
-  function showCardPreview(content, event) {
-    const activeDialog = elements.matchDialog.open
-      ? elements.matchDialog
-      : elements.commanderDialog.open
-        ? elements.commanderDialog
-        : elements.guildDialog.open
-        ? elements.guildDialog
-        : elements.dialog.open
-          ? elements.dialog
-          : document.body;
-    if (elements.cardPreview.parentElement !== activeDialog) {
-      activeDialog.appendChild(elements.cardPreview);
-    }
-    elements.cardPreview.innerHTML = content;
-    elements.cardPreview.hidden = false;
-    elements.cardPreview.setAttribute("aria-hidden", "false");
-    moveCardPreview(event);
+  async function fullCardData(card) {
+    const image = safeExternalUrl(card.cardImage);
+    const url = safeExternalUrl(card.cardUrl);
+    if (image) return { name: card.name, image, url };
+    const fetched = await getScryfallCard(card.name);
+    return { name: card.name, image: safeExternalUrl(fetched.image), url: url || safeExternalUrl(fetched.url) };
   }
+
+  let fullCardRequest = 0;
+  async function showFullCard(trigger) {
+    const card = cardFromTrigger(trigger);
+    const request = ++fullCardRequest;
+    const search = `https://scryfall.com/search?q=${encodeURIComponent(`!"${card.name}"`)}`;
+    elements.fullCardContent.innerHTML = `
+      <h2 id="fullCardTitle">${escapeAttribute(card.name)}</h2>
+      <div class="full-card-media"><span role="status">Cargando carta…</span></div>
+      <a class="deck-link full-card-source" href="${escapeAttribute(card.cardUrl || search)}" target="_blank" rel="noreferrer">Ver en Scryfall</a>`;
+    if (!elements.cardDialog.open) elements.cardDialog.showModal();
+    const result = await fullCardData(card);
+    if (!elements.cardDialog.open || request !== fullCardRequest) return;
+    elements.fullCardContent.querySelector(".full-card-media").innerHTML = result.image
+      ? `<img class="full-card-image" src="${escapeAttribute(result.image)}" alt="${escapeAttribute(result.name)}">`
+      : "<p>Imagen no disponible.</p>";
+    elements.fullCardContent.querySelector(".full-card-source").href = result.url || search;
+  }
+
+  elements.closeCardDialog.addEventListener("click", () => elements.cardDialog.close());
+  elements.cardDialog.addEventListener("click", (event) => {
+    if (event.target === elements.cardDialog) elements.cardDialog.close();
+  });
+
+  const cardPreviewSelector = "[data-card-name], [data-commander-key]";
+  let previewTimer = 0;
+  let previewTrigger = null;
+  let previewPointer;
 
   function hideCardPreview() {
+    clearTimeout(previewTimer);
+    previewTrigger = null;
     elements.cardPreview.hidden = true;
-    elements.cardPreview.setAttribute("aria-hidden", "true");
     elements.cardPreview.innerHTML = "";
   }
 
-  document.addEventListener("mouseover", async (event) => {
-    const link = event.target.closest("[data-card-image]");
-    if (!link) return;
-
-    showCardPreview('<div class="card-preview-loading">Cargando carta...</div>', event);
-
-    if (!link.dataset.cardImage) {
-      const card = await getScryfallCard(link.dataset.cardName);
-      link.dataset.cardImage = card.image;
-      link.dataset.cardUrl = card.url;
-      if (card.url) link.href = card.url;
-    }
-
-    if (!link.matches(":hover")) return;
-
-    if (!link.dataset.cardImage) {
-      showCardPreview('<div class="card-preview-loading">Sin imagen en Scryfall</div>', event);
-      return;
-    }
-
-    showCardPreview(`<img src="${escapeAttribute(link.dataset.cardImage)}" alt="${escapeAttribute(link.dataset.cardName)}">`, event);
-  });
-
-  document.addEventListener("mousemove", (event) => {
-    if (elements.cardPreview.hidden) return;
-    moveCardPreview(event);
-  });
-
-  document.addEventListener("mouseout", (event) => {
-    const link = event.target.closest("[data-card-image]");
-    if (!link) return;
-
+  document.addEventListener("pointerover", (event) => {
+    if (event.pointerType !== "mouse") return;
+    const trigger = event.target.closest(cardPreviewSelector);
+    if (!trigger || trigger === previewTrigger) return;
     hideCardPreview();
+    previewTrigger = trigger;
+    previewPointer = event;
+    previewTimer = setTimeout(async () => {
+      const parts = trigger.dataset.cardName ? [cardFromTrigger(trigger)]
+        : commanderGroups().find((group) => group.commanderGroupKey === trigger.dataset.commanderKey)?.commanders || [];
+      const cards = (await Promise.all(parts.map(fullCardData))).filter((card) => card.image);
+      if (previewTrigger !== trigger || !trigger.isConnected || !trigger.matches(":hover") || !cards.length) return;
+      const preview = elements.cardPreview;
+      (trigger.closest("dialog[open]") || document.body).appendChild(preview);
+      const gap = 16;
+      const { clientX, clientY } = previewPointer;
+      const anchor = trigger.getBoundingClientRect();
+      const besideTrigger = Math.max(anchor.left, innerWidth - anchor.right) >= 180 * cards.length + gap * 2;
+      const leftEdge = besideTrigger ? anchor.left : clientX;
+      const rightEdge = besideTrigger ? anchor.right : clientX;
+      const sideSpace = Math.max(leftEdge, innerWidth - rightEdge) - gap * 2;
+      preview.style.setProperty("--preview-card-width", `${(sideSpace - 8 * (cards.length - 1)) / cards.length}px`);
+      preview.innerHTML = cards.map((card) => `<img src="${escapeAttribute(card.image)}" alt="" width="360" height="504">`).join("");
+      preview.hidden = false;
+      const { width, height } = preview.getBoundingClientRect();
+      const x = rightEdge + gap + width <= innerWidth ? rightEdge + gap : leftEdge - gap - width;
+      const y = clientY - height * .32;
+      preview.style.transform = `translate(${Math.max(gap, Math.min(x, innerWidth - width - gap))}px, ${Math.max(gap, Math.min(y, innerHeight - height - gap))}px)`;
+    }, 1150);
   });
+
+  document.addEventListener("pointermove", (event) => {
+    if (previewTrigger && elements.cardPreview.hidden) previewPointer = event;
+  });
+
+  document.addEventListener("pointerout", (event) => {
+    if (previewTrigger?.contains(event.target) && !previewTrigger.contains(event.relatedTarget)) hideCardPreview();
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") hideCardPreview();
+  });
+  window.addEventListener("resize", hideCardPreview);
+  window.addEventListener("hashchange", hideCardPreview);
 
   elements.closeDialog.addEventListener("click", () => {
     elements.dialog.close();
@@ -1889,6 +2049,7 @@
   };
 
   async function init() {
+    initWinnerFlame();
     renderColorOptions();
     updateActiveNav();
     await loadRemoteLeaderboardData();

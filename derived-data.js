@@ -140,16 +140,44 @@
     return LEGACY_PLAYER_ALIASES.get(identityText(displayName)) || displayName;
   }
 
+  function exactPlayerName(name) {
+    return cleanText(name ?? "").toLowerCase();
+  }
+
+  function linkedPlayerDirectory(data = {}) {
+    const byId = new Map((data.players || []).filter((player) => player.id).map((player) => [player.id, player]));
+    const canonicalNames = new Set((data.players || []).filter((player) => !player.mergedInto).map((player) => exactPlayerName(player.name)));
+    const links = new Map();
+    byId.forEach((player) => {
+      if (!player.mergedInto) return;
+      const seen = new Set([player.id]);
+      let target = byId.get(player.mergedInto);
+      while (target?.mergedInto && !seen.has(target.id)) {
+        seen.add(target.id);
+        target = byId.get(target.mergedInto);
+      }
+      if (!target || seen.has(target.id)) return;
+      [player.name, ...(player.aliases || []).filter((alias) => !canonicalNames.has(exactPlayerName(alias))), target.name].forEach((name) => {
+        const key = exactPlayerName(name);
+        if (!key) return;
+        links.set(key, links.has(key) && links.get(key) !== target ? null : target);
+      });
+    });
+    return links;
+  }
+
   function playerDirectory(data = {}) {
     const directory = new Map();
     const canonicalNames = new Map();
     (data.players || []).forEach((player) => {
+      if (player.mergedInto) return;
       const key = identityText(legacyCanonicalPlayerName(player.name));
       if (key && !canonicalNames.has(key)) canonicalNames.set(key, player);
     });
     canonicalNames.forEach((player, key) => directory.set(key, player));
     const aliases = new Map();
     (data.players || []).forEach((player) => {
+      if (player.mergedInto) return;
       unique(player.aliases || []).forEach((alias) => {
         const key = identityText(legacyCanonicalPlayerName(alias));
         if (!key || canonicalNames.has(key)) return;
@@ -160,22 +188,39 @@
     aliases.forEach((player, key) => {
       if (player) directory.set(key, player);
     });
+    directory.links = linkedPlayerDirectory(data);
     return directory;
   }
 
   function resolvePlayerIdentity(name, data = {}, directory = playerDirectory(data)) {
     const suppliedName = legacyCanonicalPlayerName(name);
-    const directoryPlayer = directory.get(identityText(suppliedName));
-    const displayedName = legacyCanonicalPlayerName(directoryPlayer?.name || suppliedName);
+    const linkedPlayer = directory.links?.get(exactPlayerName(name));
+    const directoryPlayer = linkedPlayer || directory.get(identityText(suppliedName));
+    const displayedName = linkedPlayer ? linkedPlayer.name : legacyCanonicalPlayerName(directoryPlayer?.name || suppliedName);
+    const legacyName = legacyCanonicalPlayerName(displayedName);
     const key = identityText(displayedName);
     return {
       playerKey: key,
       playerId: slugify(displayedName || "jugador"),
       directoryPlayerId: directoryPlayer?.id || "",
       displayedName,
-      role: directoryPlayer?.role || (displayedName === "Horacio R." || displayedName === "Alan V." ? "Host" : "Invitado"),
+      role: directoryPlayer?.role || (legacyName === "Horacio R." || legacyName === "Alan V." ? "Host" : "Invitado"),
       handle: directoryPlayer?.handle || ""
     };
+  }
+
+  function reviewPlayerIdentity(name, data = {}, directory = playerDirectory(data)) {
+    const exact = exactPlayerName(name);
+    if (!exact) return null;
+    if (directory.links.has(exact)) return directory.links.get(exact);
+    const active = (data.players || []).filter((player) => !player.mergedInto);
+    const exactNames = active.filter((player) => exactPlayerName(player.name) === exact);
+    if (exactNames.length) return exactNames.length === 1 ? exactNames[0] : null;
+    const normalized = identityText(legacyCanonicalPlayerName(name));
+    const matches = active.filter((player) =>
+      [player.name, ...(player.aliases || [])].some((alias) => identityText(legacyCanonicalPlayerName(alias)) === normalized)
+    );
+    return matches.length === 1 ? matches[0] : null;
   }
 
   function isTieTable(table = {}) {
@@ -444,7 +489,7 @@
         id: appearance.playerId,
         directoryPlayerId: appearance.directoryPlayerId,
         name: appearance.displayedPlayerName,
-        handle: appearance.handle || directoryPlayer.handle || "",
+        handle: directoryPlayer.handle || appearance.handle || "",
         role: directoryPlayer.role || appearance.role || "Invitado",
         signature: directoryPlayer.signature || "",
         aliases: [],
@@ -466,7 +511,7 @@
       const aliasNames = [appearance.playerName, ...(directoryPlayer.aliases || [])];
       aliasNames.forEach((alias) => {
         const cleanAlias = cleanText(alias);
-        if (cleanAlias && identityText(cleanAlias) !== appearance.playerKey && !current.aliases.some((saved) => identityText(saved) === identityText(cleanAlias))) {
+        if (cleanAlias && exactPlayerName(cleanAlias) !== exactPlayerName(current.name) && !current.aliases.some((saved) => exactPlayerName(saved) === exactPlayerName(cleanAlias))) {
           current.aliases.push(cleanAlias);
         }
       });
@@ -523,11 +568,15 @@
     });
   }
 
+  function appearanceColorKey(appearance) {
+    return appearance.colors.length ? appearance.colors.join("") : appearance.colorIdentityKnown ? "C" : "?";
+  }
+
   function recordedColorStats(input = {}) {
     const appearances = Array.isArray(input) ? input : recordedAppearances(input);
     const stats = new Map();
     appearances.forEach((appearance) => {
-      const key = appearance.colors.length ? appearance.colors.join("") : appearance.colorIdentityKnown ? "C" : "?";
+      const key = appearanceColorKey(appearance);
       const current = stats.get(key) || {
         key,
         colors: appearance.colors,
@@ -578,6 +627,11 @@
     commanderDisplay,
     canonicalCommanderKey,
     legacyCanonicalPlayerName,
+    exactPlayerName,
+    linkedPlayerDirectory,
+    playerDirectory,
+    reviewPlayerIdentity,
+    appearanceColorKey,
     resolvePlayerIdentity,
     recordedAppearances,
     recordedMatches,

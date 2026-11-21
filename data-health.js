@@ -30,6 +30,74 @@
     return { severity, code, title, detail, ...location };
   }
 
+  function playerNameRecords(data) {
+    const records = new Map();
+    function record(name, handle = "", table) {
+      const key = derived.exactPlayerName(name);
+      if (!key) return;
+      const entry = records.get(key) || { name: derived.cleanText(name), handles: new Set(), tables: [] };
+      const username = derived.cleanText(handle ?? "");
+      if (username) entry.handles.add(username);
+      if (table) entry.tables.push(table);
+      records.set(key, entry);
+    }
+    (data.players || []).forEach((player) => record(player.name, player.handle));
+    (data.tables || []).forEach((table, index) => {
+      (table.participants || []).forEach((participant) => record(participant.name, participant.handle, { index, title: table.title, date: table.date }));
+    });
+    return records;
+  }
+
+  function linkPlayerIdentity(data, targetName, sourceName) {
+    const key = derived.exactPlayerName;
+    const targetKey = key(targetName);
+    const sourceKey = key(sourceName);
+    const records = playerNameRecords(data);
+    if (!targetKey || targetKey === sourceKey || !records.has(targetKey) || !records.has(sourceKey)) {
+      throw new Error("Selecciona dos perfiles distintos y vuelve a revisar.");
+    }
+    const links = derived.linkedPlayerDirectory(data);
+    const players = data.players || [];
+    const targetMatches = players.filter((player) => key(player.name) === targetKey);
+    const sourceMatches = players.filter((player) => key(player.name) === sourceKey);
+    if (targetMatches.length > 1 || sourceMatches.length > 1 ||
+        [targetKey, sourceKey].some((name) => links.has(name) && key(links.get(name)?.name) !== name)) {
+      throw new Error("Hay perfiles duplicados o enlaces previos. Revisa la identidad antes de fusionar.");
+    }
+    const target = targetMatches[0];
+    const source = sourceMatches[0];
+    const belongsTo = (participant, name, player) => {
+      const participantKey = key(participant.name);
+      return participantKey === name ||
+        (player && links.get(participantKey)?.id === player.id) ||
+        (player?.aliases || []).some((alias) => key(alias) === participantKey);
+    };
+    if ((data.tables || []).some((table) =>
+      (table.participants || []).some((participant) => belongsTo(participant, targetKey, target)) &&
+      (table.participants || []).some((participant) => belongsTo(participant, sourceKey, source)))) {
+      throw new Error("Ambos perfiles aparecen en una misma mesa. Revisa esas participaciones antes de fusionar.");
+    }
+    if ([target, source].some((player) => player?.id && players.filter((item) => item.id === player.id).length !== 1)) {
+      throw new Error("Hay IDs de jugador repetidos. Revisa los perfiles antes de fusionar.");
+    }
+    data.players = players;
+    function ensureProfile(profile, name, nameKey) {
+      const handles = [...records.get(nameKey).handles];
+      const next = profile || { name, handle: handles.length === 1 ? handles[0] : "", decks: [] };
+      if (!next.id) {
+        const prefix = `player-${derived.slugify(name) || "registro"}`;
+        let id = prefix;
+        for (let suffix = 2; players.some((item) => item.id === id); suffix += 1) id = `${prefix}-${suffix}`;
+        next.id = id;
+      }
+      if (!profile) players.push(next);
+      return next;
+    }
+    const destination = ensureProfile(target, targetName, targetKey);
+    const original = ensureProfile(source, sourceName, sourceKey);
+    original.mergedInto = destination.id;
+  }
+
   function auditData(data = {}, suppliedModel) {
     if (!derived) throw new Error("MaleducadosDerivedData is required");
     const model = suppliedModel || derived.buildDerivedData(data);
@@ -58,20 +126,21 @@
     tables.forEach((table, tableIndex) => {
       const tableId = table.id || `table-${tableIndex + 1}`;
       const tableTitle = table.title || "Partida sin título";
+      const tableLocation = { tableId, tableIndex, tableTitle };
       const tableKey = [derived.identityText(table.title), table.date || "", normalizedUrl(table.videoUrl)].join("|");
       if (tableKey !== "||") tableKeys.set(tableKey, [...(tableKeys.get(tableKey) || []), tableId]);
       if (table.id) tableIds.set(table.id, [...(tableIds.get(table.id) || []), tableIndex]);
-      if (!table.date) issues.push(issue("warning", "missing-date", "Mesa sin fecha", tableTitle, { tableId }));
+      if (!table.date) issues.push(issue("warning", "missing-date", "Mesa sin fecha", tableTitle, tableLocation));
       if (!table.videoUrl) {
-        issues.push(issue("warning", "missing-youtube", "Mesa sin YouTube", tableTitle, { tableId }));
+        issues.push(issue("warning", "missing-youtube", "Mesa sin YouTube", tableTitle, tableLocation));
       } else if (!validHttpUrl(table.videoUrl)) {
-        issues.push(issue("error", "invalid-youtube-url", "URL de YouTube mal formada", table.videoUrl, { tableId }));
+        issues.push(issue("error", "invalid-youtube-url", "URL de YouTube mal formada", table.videoUrl, tableLocation));
       } else if (!hostMatches(table.videoUrl, ["youtube.com", "youtu.be"])) {
-        issues.push(issue("warning", "unexpected-video-host", "El enlace de video no es de YouTube", table.videoUrl, { tableId }));
+        issues.push(issue("warning", "unexpected-video-host", "El enlace de video no es de YouTube", table.videoUrl, tableLocation));
       }
 
       (table.participants || []).forEach((participant, participantIndex) => {
-        const location = { tableId, participantIndex, playerName: participant.name || "Jugador sin nombre" };
+        const location = { ...tableLocation, participantIndex, playerName: participant.name || "Jugador sin nombre" };
         const commanderKey = derived.canonicalCommanderKey(participant);
         if (!commanderKey) issues.push(issue("error", "missing-commander", "Participante sin comandante", `${tableTitle}: ${location.playerName}`, location));
         if (!participant.moxfield) {
@@ -92,7 +161,7 @@
       const declaredWinners = table.resultMode === "tie" ? [] : [...new Set([...(table.winnerIds || []), table.winnerId].filter(Boolean))];
       const participantIds = new Set((table.participants || []).map((participant) => participant.id).filter(Boolean));
       declaredWinners.filter((winnerId) => !participantIds.has(winnerId)).forEach((winnerId) => {
-        issues.push(issue("error", "unknown-winner", "Ganador fuera de participantes", `${tableTitle}: ${winnerId}`, { tableId }));
+        issues.push(issue("error", "unknown-winner", "Ganador fuera de participantes", `${tableTitle}: ${winnerId}`, tableLocation));
       });
     });
 
@@ -105,17 +174,31 @@
 
     const playerNames = new Map();
     const handles = new Map();
-    (data.players || []).forEach((player) => {
-      const nameKey = derived.identityText(derived.legacyCanonicalPlayerName(player.name || ""));
+    const linkedPlayers = derived.linkedPlayerDirectory(data);
+    const directory = derived.playerDirectory(data);
+    playerNameRecords(data).forEach((player, key) => {
+      const linked = linkedPlayers.get(key);
+      if (linked && derived.exactPlayerName(linked.name) !== key) return;
+      if (!player.handles.size && !derived.resolvePlayerIdentity(player.name, data, directory).handle) {
+        issues.push(issue("info", "missing-player-handle", "Jugador sin username", player.name, { playerNames: [player.name] }));
+      }
+      const nameKey = derived.identityText(derived.legacyCanonicalPlayerName(player.name));
       if (nameKey) playerNames.set(nameKey, [...(playerNames.get(nameKey) || []), player.name]);
-      const handleKey = derived.identityText(player.handle || "");
-      if (handleKey) handles.set(handleKey, [...(handles.get(handleKey) || []), player.name]);
+      player.handles.forEach((handle) => {
+        const handleKey = handle.toLowerCase().replace(/^@/, "");
+        handles.set(handleKey, [...new Set([...(handles.get(handleKey) || []), player.name])]);
+      });
+    });
+    (data.players || []).filter((player) => !player.mergedInto).forEach((player, index, players) => {
+      if (players.findIndex((item) => derived.exactPlayerName(item.name) === derived.exactPlayerName(player.name)) < index) {
+        issues.push(issue("warning", "possible-player-duplicate", "El mismo nombre figura en varios perfiles", player.name));
+      }
     });
     playerNames.forEach((names) => {
-      if (names.length > 1) issues.push(issue("warning", "possible-player-duplicate", "Posibles jugadores duplicados", names.join(" / ")));
+      if (names.length > 1) issues.push(issue("warning", "possible-player-duplicate", "Posibles jugadores duplicados", names.join(" / "), { playerNames: names }));
     });
     handles.forEach((names) => {
-      if (names.length > 1) issues.push(issue("warning", "shared-handle", "Handle compartido", names.join(" / ")));
+      if (names.length > 1) issues.push(issue("warning", "shared-handle", "Handle compartido", names.join(" / "), { playerNames: names }));
     });
 
     const commanderVariants = new Map();
@@ -144,5 +227,5 @@
     return { counts, issues, healthy: counts.error === 0, checkedAt: new Date().toISOString() };
   }
 
-  return { validHttpUrl, normalizedUrl, hostMatches, auditData };
+  return { validHttpUrl, normalizedUrl, hostMatches, auditData, playerNameRecords, linkPlayerIdentity };
 });

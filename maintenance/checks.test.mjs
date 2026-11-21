@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import derived from '../derived-data.js';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -96,7 +97,7 @@ test('editor preserves partner identity and commander names when metadata lookup
   const node = { dataset: {}, addEventListener() {}, elements: { resultMode: { addEventListener() {} }, videoUrl: { addEventListener() {} } } };
   const participant = { id: 'a', name: 'A', handle: '', commander: 'First', colors: ['U'], moxfield: 'https://moxfield.com/decks/a' };
   const data = { players: [{ id: 'a', name: 'A', decks: [{ ...participant, wins: 1, losses: 0 }] }], tables: [{ id: 't', participants: [participant], winnerId: 'a' }] };
-  const context = { window: { MALEDucadosFirebaseConfig: { enabled: false }, getLeaderboardData: () => structuredClone(data) }, document: { querySelector: () => node }, console, URL, fetch: async () => { throw new Error('offline'); } };
+  const context = { window: { MaleducadosDerivedData: derived, MALEDucadosFirebaseConfig: { enabled: false }, getLeaderboardData: () => structuredClone(data) }, document: { querySelector: () => node }, console, URL, fetch: async () => { throw new Error('offline'); } };
   vm.createContext(context);
   vm.runInContext(source, context, { timeout: 5000 });
   assert.equal(vm.runInContext('playerDirectory()[0].decks[0].wins', context), 2);
@@ -106,5 +107,5 @@ test('editor preserves partner identity and commander names when metadata lookup
   assert.equal(vm.runInContext('commanderDisplayFromParticipant(draftParticipants[0])', context), 'First & Second');
   const failure = await vm.runInContext('fetchCommanderCards("First")', context);
   assert.equal(failure.cards[0].name, 'First');
-  assert.ok(source.indexOf('await firebaseApi.setDoc') < source.indexOf('window.setLeaderboardData(nextData)'), 'The public view must update only after Firestore confirms the save');
+  assert.match(source, /await firebaseApi\.setDoc\([\s\S]+?\);\s+window\.setLeaderboardData\(nextData\)/);
 });

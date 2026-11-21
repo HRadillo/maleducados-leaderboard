@@ -79,24 +79,9 @@
           </div>
           <div class="hero-panel" aria-label="Última mesa del canal">
             <div class="winner-fire" aria-hidden="true">
-              <svg viewBox="0 0 160 190" role="img">
-                <defs>
-                  <linearGradient id="outerFlame" x1="80" y1="8" x2="80" y2="178" gradientUnits="userSpaceOnUse">
-                    <stop offset="0" stop-color="#ff8a24"/>
-                    <stop offset="0.58" stop-color="#ff5a1f"/>
-                    <stop offset="1" stop-color="#ef2424"/>
-                  </linearGradient>
-                  <linearGradient id="innerFlame" x1="80" y1="64" x2="80" y2="170" gradientUnits="userSpaceOnUse">
-                    <stop offset="0" stop-color="#ff9c2e"/>
-                    <stop offset="1" stop-color="#ff3d1e"/>
-                  </linearGradient>
-                </defs>
-                <path class="flame flame-outer" d="M81 177c-39 0-68-26-68-64 0-25 12-47 33-67 12-12 19-27 17-43 24 13 42 35 45 62 8-10 14-24 14-39 20 18 30 42 30 68 0 48-33 83-71 83Z"/>
-                <path class="flame flame-side" d="M117 169c18-16 27-35 23-59-3-17-12-31-24-43 0 18-9 30-23 43 23 6 34 27 24 59Z"/>
-                <path class="flame flame-inner" d="M80 170c-24 0-42-16-42-40 0-16 8-30 21-43 8-8 12-18 11-29 25 17 39 43 38 72-1 24-13 40-28 40Z"/>
-              </svg>
+              <canvas id="winnerFlame" width="320" height="384" aria-hidden="true"></canvas>
             </div>
-            <div>
+            <div class="latest-summary">
               <span class="panel-kicker">Última Mesa</span>
               <button id="latestTableTitle" class="hero-table-link" type="button">-</button>
               <p id="latestTableMeta">-</p>
@@ -122,10 +107,22 @@
           <button class="metric metric-link" type="button" data-nav-target="#comandantes">
             <span>Comandantes únicos</span><strong id="uniqueCommanderCount">0</strong>
           </button>
-          <article class="metric rivalry-metric">
-            <span>Hosts vs invitados</span>
-            <strong id="hostGuestScore">0-0</strong>
-            <small id="hostGuestRate">Hosts 0% | Invitados 0%</small>
+          <article class="metric rivalry-metric" aria-labelledby="rivalryTitle" data-has-wins="false">
+            <h2 id="rivalryTitle">Hosts vs invitados</h2>
+            <div class="rivalry-breakdown">
+              <div class="rivalry-ring">
+                <svg viewBox="0 0 88 88" aria-hidden="true">
+                  <circle class="rivalry-track" cx="44" cy="44" r="36"/>
+                  <circle class="rivalry-guest-arc" cx="44" cy="44" r="36"/>
+                  <circle class="rivalry-host-arc" id="rivalryHostArc" cx="44" cy="44" r="36" pathLength="100" stroke-dasharray="0 100" transform="rotate(-90 44 44)"/>
+                </svg>
+                <p><b id="rivalryTotal">0</b> victorias</p>
+              </div>
+              <dl class="rivalry-legend">
+                <div><dt>Hosts</dt><dd id="rivalryHostWins">0 · 0%</dd></div>
+                <div><dt>Invitados</dt><dd id="rivalryGuestWins">0 · 0%</dd></div>
+              </dl>
+            </div>
           </article>
           <button id="topCommanderMetric" class="metric metric-link insight-metric" type="button">
             <span>Comandante más jugado</span><strong id="topCommanderName">-</strong><small id="topCommanderMeta">-</small>
@@ -153,7 +150,10 @@
             <span><b>WR</b> wins entre partidas decididas</span>
           </div>
           <div class="guild-stats-grid" aria-live="polite">
-            <article class="guild-panel"><div class="guild-panel-head"><span class="section-kicker">Popularidad</span><h3>Más jugados</h3></div><div id="guildPlayedStats" class="guild-stat-list"></div></article>
+            <section class="meta-chart" aria-labelledby="metaChartTitle">
+              <div class="meta-chart-heading"><h3 id="metaChartTitle">¿Qué colores se juegan más?</h3><span id="metaChartTotal"></span></div>
+              <div id="guildPlayedStats"></div>
+            </section>
             <article class="guild-panel"><div class="guild-panel-head"><span class="section-kicker">Volumen</span><h3>Más victorias</h3></div><div id="guildWinStats" class="guild-stat-list"></div></article>
             <article class="guild-panel"><div class="guild-panel-head"><span class="section-kicker">Eficiencia</span><h3>Mejor win rate</h3></div><div id="guildRateStats" class="guild-stat-list"></div></article>
           </div>
@@ -297,7 +297,7 @@
 
             <div class="admin-grid">
               <section class="editor-card data-health-card" aria-labelledby="dataHealthTitle">
-                <div class="editor-card-head"><div><h3 id="dataHealthTitle">Salud de datos</h3><p>Diagnóstico de solo lectura; nunca corrige registros automáticamente.</p></div><button id="refreshDataHealth" class="admin-button secondary" type="button">Revisar de nuevo</button></div>
+                <div class="editor-card-head"><h3 id="dataHealthTitle" tabindex="-1">Salud de datos</h3><button id="refreshDataHealth" class="admin-button secondary" type="button">Revisar de nuevo</button></div>
                 <div id="dataHealthSummary" class="data-health-summary"></div>
                 <div id="dataHealthIssues" class="data-health-issues"></div>
               </section>
@@ -392,8 +392,8 @@
                       <strong>Jugadores</strong>
                       <small>Comandantes, decks y links</small>
                     </span>
-                    <button id="addParticipant" class="admin-button secondary" type="button">Agregar Jugador</button>
                   </summary>
+                  <div class="participant-add"><button id="addParticipant" class="admin-button secondary" type="button">Agregar jugador</button></div>
                   <div id="participantList" class="participant-list"></div>
                 </details>
               </form>
@@ -437,6 +437,7 @@
                       </label>
                       <label class="wide"><span>Alias conservados</span><input id="playerAliasesInput" placeholder="Pepe A., José A."></label>
                     </div>
+                    <div id="playerMergeReview" class="player-merge-review" hidden></div>
                     <div id="playerDeckSummary" class="player-deck-summary"></div>
                   </div>
                 </div>
@@ -475,6 +476,10 @@
     <dialog id="matchDialog" class="player-dialog match-dialog" aria-labelledby="matchDialogTitle">
       <button id="closeMatchDialog" class="icon-button" type="button" aria-label="Cerrar">x</button>
       <div id="matchDialogContent"></div>
+    </dialog>
+    <dialog id="cardDialog" class="player-dialog full-card-dialog" aria-labelledby="fullCardTitle">
+      <button id="closeCardDialog" class="icon-button" type="button" aria-label="Cerrar carta">x</button>
+      <div id="fullCardContent"></div>
     </dialog>
     <div id="cardPreview" class="card-preview" aria-hidden="true" hidden></div>
     <div id="playerPreview" class="player-preview" role="tooltip" aria-hidden="true" hidden></div>
