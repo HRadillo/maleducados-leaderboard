@@ -8,6 +8,9 @@
       "firebase.json",
       "maintenance/**",
       "**/.*",
+      "**/.git/**",
+      "**/.backups/**",
+      "**/.firebase/**",
       "**/node_modules/**"
     ]
   }
