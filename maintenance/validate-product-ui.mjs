@@ -121,8 +121,7 @@ try {
     const groupButton = page.locator('#commanderGrid [data-commander-key]').filter({ hasText: pair.commanders[1].name }).first();
     assert.equal(await groupButton.locator('img').first().evaluate((image) => getComputedStyle(image).objectFit), 'contain');
     await groupButton.hover();
-    assert.equal(await page.locator('#cardPreview').isHidden(), true);
-    await page.locator('#cardPreview img').nth(1).waitFor({ state: 'visible' });
+    assert.ok(await page.locator('#cardPreview img').nth(1).isVisible());
     const preview = await page.locator('#cardPreview').boundingBox();
     assert.ok(preview.x >= 0 && preview.y >= 0 && preview.x + preview.width <= 1440 && preview.y + preview.height <= 1000);
     if (screenshotDirectory) await page.screenshot({ path: resolve(screenshotDirectory, 'partner-hover.png') });
@@ -188,6 +187,15 @@ try {
     await page.setViewportSize({ width, height: 900 });
     const problems = await page.evaluate(() => {
       const issues = [];
+      const rail = document.querySelector('.rail');
+      window.scrollTo({ top: 0, behavior: 'instant' });
+      const start = rail.getBoundingClientRect();
+      window.scrollTo({ top: 900, behavior: 'instant' });
+      const end = rail.getBoundingClientRect();
+      if (window.scrollY === 0 || Math.abs(start.top - end.top) > 1 || Math.abs(start.left - end.left) > 1) {
+        issues.push('navigation moved while scrolling');
+      }
+      window.scrollTo({ top: 0, behavior: 'instant' });
       const inside = (outer, inner) => {
         const a = outer.getBoundingClientRect();
         const b = inner.getBoundingClientRect();

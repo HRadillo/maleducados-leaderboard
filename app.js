@@ -1898,18 +1898,24 @@
   async function showFullCard(trigger) {
     const card = cardFromTrigger(trigger);
     const request = ++fullCardRequest;
+    const image = safeExternalUrl(card.cardImage);
     const search = `https://scryfall.com/search?q=${encodeURIComponent(`!"${card.name}"`)}`;
     elements.fullCardContent.innerHTML = `
       <h2 id="fullCardTitle">${escapeAttribute(card.name)}</h2>
-      <div class="full-card-media"><span role="status">Cargando carta…</span></div>
+      <div class="full-card-media">${image ? fullCardImage(card.name, image) : '<span role="status">Cargando carta…</span>'}</div>
       <a class="deck-link full-card-source" href="${escapeAttribute(card.cardUrl || search)}" target="_blank" rel="noreferrer">Ver en Scryfall</a>`;
     if (!elements.cardDialog.open) elements.cardDialog.showModal();
+    if (image) return;
     const result = await fullCardData(card);
     if (!elements.cardDialog.open || request !== fullCardRequest) return;
     elements.fullCardContent.querySelector(".full-card-media").innerHTML = result.image
-      ? `<img class="full-card-image" src="${escapeAttribute(result.image)}" alt="${escapeAttribute(result.name)}">`
+      ? fullCardImage(result.name, result.image)
       : "<p>Imagen no disponible.</p>";
     elements.fullCardContent.querySelector(".full-card-source").href = result.url || search;
+  }
+
+  function fullCardImage(name, image) {
+    return `<img class="full-card-image" src="${escapeAttribute(image)}" alt="${escapeAttribute(name)}" width="420" height="588">`;
   }
 
   elements.closeCardDialog.addEventListener("click", () => elements.cardDialog.close());
@@ -1918,50 +1924,53 @@
   });
 
   const cardPreviewSelector = "[data-card-name], [data-commander-key]";
-  let previewTimer = 0;
   let previewTrigger = null;
   let previewPointer;
 
   function hideCardPreview() {
-    clearTimeout(previewTimer);
     previewTrigger = null;
     elements.cardPreview.hidden = true;
     elements.cardPreview.innerHTML = "";
   }
 
-  document.addEventListener("pointerover", (event) => {
+  function renderCardPreview(trigger, cards) {
+    const preview = elements.cardPreview;
+    (trigger.closest("dialog[open]") || document.body).appendChild(preview);
+    const gap = 16;
+    const { clientX, clientY } = previewPointer;
+    const anchor = trigger.getBoundingClientRect();
+    const besideTrigger = Math.max(anchor.left, innerWidth - anchor.right) >= 180 * cards.length + gap * 2;
+    const leftEdge = besideTrigger ? anchor.left : clientX;
+    const rightEdge = besideTrigger ? anchor.right : clientX;
+    const sideSpace = Math.max(leftEdge, innerWidth - rightEdge) - gap * 2;
+    preview.style.setProperty("--preview-card-width", `${(sideSpace - 8 * (cards.length - 1)) / cards.length}px`);
+    preview.innerHTML = cards.map((card) => card.image
+      ? `<img src="${escapeAttribute(card.image)}" alt="" width="360" height="504">`
+      : `<span class="card-preview-status">${card.loading ? "Cargando carta…" : "Imagen no disponible"}</span>`).join("");
+    preview.hidden = false;
+    const { width, height } = preview.getBoundingClientRect();
+    const x = rightEdge + gap + width <= innerWidth ? rightEdge + gap : leftEdge - gap - width;
+    const y = clientY - height * .32;
+    preview.style.transform = `translate(${Math.max(gap, Math.min(x, innerWidth - width - gap))}px, ${Math.max(gap, Math.min(y, innerHeight - height - gap))}px)`;
+  }
+
+  document.addEventListener("pointerover", async (event) => {
     if (event.pointerType !== "mouse") return;
     const trigger = event.target.closest(cardPreviewSelector);
     if (!trigger || trigger === previewTrigger) return;
     hideCardPreview();
+    const parts = trigger.dataset.cardName ? [cardFromTrigger(trigger)]
+      : commanderGroups().find((group) => group.commanderGroupKey === trigger.dataset.commanderKey)?.commanders || [];
+    if (!parts.length) return;
     previewTrigger = trigger;
     previewPointer = event;
-    previewTimer = setTimeout(async () => {
-      const parts = trigger.dataset.cardName ? [cardFromTrigger(trigger)]
-        : commanderGroups().find((group) => group.commanderGroupKey === trigger.dataset.commanderKey)?.commanders || [];
-      const cards = (await Promise.all(parts.map(fullCardData))).filter((card) => card.image);
-      if (previewTrigger !== trigger || !trigger.isConnected || !trigger.matches(":hover") || !cards.length) return;
-      const preview = elements.cardPreview;
-      (trigger.closest("dialog[open]") || document.body).appendChild(preview);
-      const gap = 16;
-      const { clientX, clientY } = previewPointer;
-      const anchor = trigger.getBoundingClientRect();
-      const besideTrigger = Math.max(anchor.left, innerWidth - anchor.right) >= 180 * cards.length + gap * 2;
-      const leftEdge = besideTrigger ? anchor.left : clientX;
-      const rightEdge = besideTrigger ? anchor.right : clientX;
-      const sideSpace = Math.max(leftEdge, innerWidth - rightEdge) - gap * 2;
-      preview.style.setProperty("--preview-card-width", `${(sideSpace - 8 * (cards.length - 1)) / cards.length}px`);
-      preview.innerHTML = cards.map((card) => `<img src="${escapeAttribute(card.image)}" alt="" width="360" height="504">`).join("");
-      preview.hidden = false;
-      const { width, height } = preview.getBoundingClientRect();
-      const x = rightEdge + gap + width <= innerWidth ? rightEdge + gap : leftEdge - gap - width;
-      const y = clientY - height * .32;
-      preview.style.transform = `translate(${Math.max(gap, Math.min(x, innerWidth - width - gap))}px, ${Math.max(gap, Math.min(y, innerHeight - height - gap))}px)`;
-    }, 1150);
-  });
-
-  document.addEventListener("pointermove", (event) => {
-    if (previewTrigger && elements.cardPreview.hidden) previewPointer = event;
+    const cards = parts.map((part) => ({ image: safeExternalUrl(part.cardImage), loading: true }));
+    renderCardPreview(trigger, cards);
+    await Promise.all(parts.map(async (part, index) => {
+      if (cards[index].image) return;
+      cards[index] = await fullCardData(part);
+      if (previewTrigger === trigger && trigger.isConnected && trigger.matches(":hover")) renderCardPreview(trigger, cards);
+    }));
   });
 
   document.addEventListener("pointerout", (event) => {
@@ -1972,6 +1981,9 @@
   });
   window.addEventListener("resize", hideCardPreview);
   window.addEventListener("hashchange", hideCardPreview);
+  document.addEventListener("scroll", () => {
+    if (previewTrigger) hideCardPreview();
+  }, { capture: true, passive: true });
 
   elements.closeDialog.addEventListener("click", () => {
     elements.dialog.close();
